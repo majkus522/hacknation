@@ -17,7 +17,7 @@
         box.className = "perun-gp-status " + typ;
     }
 
-    /* --- SPRAWDZENIE UPRAWNIEŃ ADMINISTRATORA --- */
+    /* --- SPRAWDZENIE UPRAWNIEŃ UŻYTKOWNIKA / ADMINISTRATORA --- */
     function czyAdministrator() {
         if (
             !window.PerunAuth ||
@@ -27,16 +27,112 @@
         }
         const session = window.PerunAuth.getSession();
         if (!session || !session.user) return false;
-        return session.user.role === "admin" || session.user.isAdmin === true;
+        return (
+            session.user.fieldadmin === true ||
+            session.user.role === "admin" ||
+            session.user.isAdmin === true
+        );
     }
 
     function inicjalizujSlotAdministratora() {
-        const container = document.getElementById("perunAdminWatchContainer");
-        if (!container) return;
-        container.hidden = !czyAdministrator();
+        const session = window.PerunAuth?.getSession?.();
+        const userSaveBox = document.getElementById("perunUserSaveContainer");
+        const adminBox = document.getElementById("perunAdminWatchContainer");
+
+        if (userSaveBox) {
+            userSaveBox.hidden = !session;
+        }
+        if (adminBox) {
+            adminBox.hidden = !czyAdministrator();
+        }
     }
 
-    /* Zaślepka pod przyszłą implementację dodawania do obserwowanych */
+    /* Zapisuje wyszukaną działkę w panelu zalogowanego użytkownika (panel.html) */
+    function zapiszDzialkeDlaUzytkownika() {
+        const session = window.PerunAuth?.getSession?.();
+        if (!session) {
+            window.location.href = "login.html?redirect=wyszukiwarka.html";
+            return;
+        }
+
+        if (!state.ostatniKsztalt) {
+            pokazStatus("Najpierw wyszukaj działkę.", "error");
+            return;
+        }
+
+        const storageKey = `perun_saved_parcels_${session.user.id || "default"}`;
+        const fallbackKey = "perun_saved_parcels_v1";
+
+        const pts = [...state.ostatniKsztalt.punktyGeo];
+        if (pts.length > 2) {
+            const first = pts[0];
+            const last = pts[pts.length - 1];
+            if (
+                Math.abs(first.lon - last.lon) < 1e-9 &&
+                Math.abs(first.lat - last.lat) < 1e-9
+            ) {
+                pts.pop();
+            }
+        }
+
+        const refLon = pts[0].lon;
+        const refLat = pts[0].lat;
+        const cosLat = Math.cos((refLat * Math.PI) / 180);
+
+        const corners = pts.map((p, idx) => ({
+            id: `P${idx + 1}`,
+            x: Number(((p.lon - refLon) * 111320 * cosLat).toFixed(1)),
+            y: Number(((refLat - p.lat) * 110540).toFixed(1)),
+        }));
+
+        let areaM2 = 0;
+        for (let i = 0; i < corners.length; i++) {
+            const j = (i + 1) % corners.length;
+            areaM2 += corners[i].x * corners[j].y - corners[j].x * corners[i].y;
+        }
+        const areaHa = Math.max(
+            0.01,
+            Number((Math.abs(areaM2) / 2 / 10000).toFixed(2)),
+        );
+
+        const currentTempText =
+            document.getElementById("meteoTemp")?.textContent || "14.2";
+        const parsedTemp = parseFloat(currentTempText) || 14.2;
+
+        const newParcel = {
+            id: `parcel-${Date.now()}`,
+            terytId: state.ostatniKsztalt.id,
+            name: `Działka ${state.ostatniKsztalt.lokalizacja.nr} (${state.ostatniKsztalt.lokalizacja.obreb})`,
+            crop: "Uprawa nieprzypisana",
+            areaHa,
+            todayFieldReading: {
+                date: new Date().toISOString().slice(0, 10),
+                temp: parsedTemp,
+                moisture: 31.0,
+            },
+            corners,
+            sensors: [],
+        };
+
+        const existingRaw =
+            localStorage.getItem(storageKey) ||
+            localStorage.getItem(fallbackKey);
+        const list = existingRaw ? JSON.parse(existingRaw) : [];
+
+        const filtered = list.filter((p) => p.terytId !== newParcel.terytId);
+        filtered.unshift(newParcel);
+
+        const serialized = JSON.stringify(filtered);
+        localStorage.setItem(storageKey, serialized);
+        localStorage.setItem(fallbackKey, serialized);
+
+        pokazStatus(
+            `Zapisano działkę ${newParcel.terytId} w Twoim panelu. Przejdź do zakładki „Moje działki”, aby ją zobaczyć.`,
+            "ok",
+        );
+    }
+
+    /* Zaślepka pod przyszłą implementację dodawania do obserwowanych przez administratora */
     function dodajDoObserwowanychStub() {
         if (!czyAdministrator()) return;
 
@@ -128,22 +224,18 @@
         const b = Number(parts[1]);
         if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
 
-        /* Układ metryczny PUWG 1992 (EPSG:2180) */
         if (a > 100000 && b > 100000) {
             return { mode: "2180", x: a, y: b };
         }
 
-        /* Format Google Maps (lat, lon) dla Polski: lat ~ 47..56, lon ~ 13..25 */
         if (a >= 47 && a <= 56 && b >= 13 && b <= 25) {
             return { mode: "4326", lon: b, lat: a, wasSwapped: true };
         }
 
-        /* Format GIS (lon, lat) dla Polski: lon ~ 13..25, lat ~ 47..56 */
         if (a >= 13 && a <= 25 && b >= 47 && b <= 56) {
             return { mode: "4326", lon: a, lat: b, wasSwapped: false };
         }
 
-        /* Ogólny zakres WGS84 (lon, lat) */
         if (Math.abs(a) <= 180 && Math.abs(b) <= 90) {
             return { mode: "4326", lon: a, lat: b, wasSwapped: false };
         }
@@ -285,13 +377,11 @@
                         xy: `${parsed.x},${parsed.y}`,
                     });
                 } else {
-                    /* Próba 1: WGS84 (lon, lat, 4326) */
                     uldkResponse = await wywolajUldk({
                         request: "GetParcelByXY",
                         xy: `${parsed.lon},${parsed.lat},4326`,
                     });
 
-                    /* Próba 2 (fallback): konwersja do natywnego PUWG 1992 (EPSG:2180) */
                     if (!uldkResponse.ok) {
                         const puwg = wgs84ToPuwg1992(parsed.lon, parsed.lat);
                         uldkResponse = await wywolajUldk({
@@ -359,18 +449,6 @@
 
             aktualizujMetadaneDzialki(wynikDlaPeruna);
             odswiezDaneSrodowiskowe();
-
-            console.group(`Perun – Znormalizowany kształt działki: ${id}`);
-            console.log(
-                "Punkty znormalizowane [0..1] (zachowane proporcje):",
-                znormalizowany.punkty01,
-            );
-            console.log(
-                "Punkty wyśrodkowane względem środka ciężkości:",
-                znormalizowany.punktyCentered,
-            );
-            console.log("Pełny obiekt kształtu dla Peruna:", wynikDlaPeruna);
-            console.groupEnd();
 
             document.dispatchEvent(
                 new CustomEvent("perun:ksztaltGotowy", {
@@ -644,14 +722,12 @@
             });
             ctx.closePath();
 
-            /* Kontur i wypełnienie w kolorach marki Perun */
             ctx.fillStyle = "rgba(50, 167, 58, 0.18)";
             ctx.fill();
             ctx.lineWidth = 2.5;
             ctx.strokeStyle = "#32a73a";
             ctx.stroke();
 
-            /* Wierzchołki działki */
             ctx.fillStyle = "#ffffff";
             ctx.strokeStyle = "#15803d";
             ctx.lineWidth = 2;
@@ -703,6 +779,10 @@
             ?.addEventListener("change", odswiezDaneSrodowiskowe);
 
         document
+            .getElementById("btnSaveUserParcel")
+            ?.addEventListener("click", zapiszDzialkeDlaUzytkownika);
+
+        document
             .getElementById("btnAddWatchedParcel")
             ?.addEventListener("click", dodajDoObserwowanychStub);
     }
@@ -711,7 +791,6 @@
         inicjalizujSlotAdministratora();
         bindEvents();
 
-        /* Obsługa parametru ?q= przekazanego z paska szybkiego wyszukiwania na index.html */
         const params = new URLSearchParams(window.location.search);
         const initialQuery = (params.get("q") || "").trim();
 
@@ -742,6 +821,7 @@
         normalizujKsztalt,
         parsujWspolrzedne,
         wgs84ToPuwg1992,
+        zapiszDzialkeDlaUzytkownika,
         dodajDoObserwowanychStub,
         pobierzOstatniKsztalt: () => state.ostatniKsztalt,
     };

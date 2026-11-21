@@ -2,7 +2,12 @@
     "use strict";
 
     const SVG_NS = "http://www.w3.org/2000/svg";
-    const STORAGE_KEY = "perun_saved_parcels_v1";
+
+    function getUserStorageKey() {
+        const session = window.PerunAuth?.getSession?.();
+        const uid = session?.user?.id || "default";
+        return `perun_saved_parcels_${uid}`;
+    }
 
     /* --- SZABLONY ZAPISANYCH DZIAŁEK UŻYTKOWNIKA --- */
     function createTemplateParcels() {
@@ -13,7 +18,6 @@
                 name: "Działka #1 (Template) – Brak aktywnych czujek",
                 crop: "Pszenica ozima",
                 areaHa: 5.42,
-                /* Odczyt bazowy pola na dzisiejszy dzień (używany gdy brak czujek online) */
                 todayFieldReading: {
                     date: new Date().toISOString().slice(0, 10),
                     temp: 14.2,
@@ -26,7 +30,6 @@
                     { id: "P4", x: 42, y: 215 },
                     { id: "P5", x: -18, y: 105 },
                 ],
-                /* Pusta lista czujek – kliknięcie w planszę doda czujkę offline (ignorowaną) */
                 sensors: [],
             },
             {
@@ -174,10 +177,11 @@
         offline: "Offline (ignorowana)",
     };
 
-    /* --- STAN APLIKACJI --- */
+    const initialParcels = loadParcels();
+
     const state = {
-        parcels: loadParcels(),
-        selectedParcelId: "tpl-1",
+        parcels: initialParcels,
+        selectedParcelId: initialParcels[0]?.id || "tpl-1",
         metric: "temp",
         selectedSensorId: null,
         probePoint: null,
@@ -196,8 +200,11 @@
     };
 
     function loadParcels() {
+        const key = getUserStorageKey();
         try {
-            const raw = localStorage.getItem(STORAGE_KEY);
+            const raw =
+                localStorage.getItem(key) ||
+                localStorage.getItem("perun_saved_parcels_v1");
             if (raw) {
                 const parsed = JSON.parse(raw);
                 if (Array.isArray(parsed) && parsed.length > 0) {
@@ -213,8 +220,11 @@
     }
 
     function saveParcels(parcels = state.parcels) {
+        const key = getUserStorageKey();
         try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(parcels));
+            const serialized = JSON.stringify(parcels);
+            localStorage.setItem(key, serialized);
+            localStorage.setItem("perun_saved_parcels_v1", serialized);
         } catch {
             /* ignoruj błąd zapisu w trybie prywatnym */
         }
@@ -588,7 +598,6 @@
                 `śr. ${summary.value.toFixed(1)} ${meta.unit} (${summary.min.toFixed(1)}–${summary.max.toFixed(1)})`;
         }
 
-        /* Szczegóły wybranej czujki */
         const sensorBox = document.getElementById("sensorDetails");
         const selectedSensor = (parcel.sensors || []).find(
             (s) => s.id === state.selectedSensorId,
@@ -674,7 +683,6 @@
                 });
         }
 
-        /* Odczyt w klikniętym punkcie (IDW lub odczyt bazowy pola) */
         const probeBox = document.getElementById("probeDetails");
         if (!state.probePoint) {
             probeBox.className = "details-empty";
@@ -704,7 +712,6 @@
             `;
         }
 
-        /* Podgląd JSON */
         const jsonPreview = document.getElementById("jsonPreview");
         if (jsonPreview) {
             jsonPreview.textContent = JSON.stringify(
@@ -862,7 +869,6 @@
                 const parcel = getCurrentParcel();
                 const active = getActiveSensors(parcel, "temp");
                 if (active.length === 0) {
-                    /* Aktualizacja dzisiejszego odczytu pola */
                     parcel.todayFieldReading.temp = Number(
                         (
                             parcel.todayFieldReading.temp +
@@ -876,7 +882,6 @@
                         ).toFixed(1),
                     );
                 } else {
-                    /* Aktualizacja wyłącznie czujek online; czujki offline pozostają nietknięte */
                     active.forEach((s) => {
                         s.temp = Number(
                             (s.temp + (Math.random() * 1.8 - 0.9)).toFixed(1),
@@ -939,7 +944,6 @@
             fitViewToParcel();
         });
 
-        /* Interakcje na planszy SVG */
         const svg = document.getElementById("fieldSvg");
         if (!svg) return;
 
@@ -1010,7 +1014,6 @@
             const pt = screenToWorld(e.clientX, e.clientY);
             const inside = isPointInPolygon(pt, parcel.corners);
 
-            /* Tryb dodawania nowej czujki -> zawsze offline i ignorowana */
             if (state.addSensorMode) {
                 const banner = document.getElementById("modeBanner");
                 if (!inside) {
@@ -1041,7 +1044,6 @@
                 return;
             }
 
-            /* Standardowy klik wewnątrz pola -> odczyt IDW / odczyt pola w punkcie */
             if (inside) {
                 state.probePoint = {
                     x: Number(pt.x.toFixed(1)),

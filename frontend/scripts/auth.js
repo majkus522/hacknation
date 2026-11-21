@@ -1,444 +1,275 @@
 (function () {
     "use strict";
 
-    const CONFIG = {
-        /* Zmień na false po podpięciu własnego backendu (np. FastAPI / Node / PHP) */
-        useMockBackend: true,
-        apiBaseUrl: "/api/auth",
-        sessionCookieName: "perun_session",
-        mockUsersKey: "perun_mock_users",
-        defaultRedirectAfterLogin: "panel.html",
-        loginPage: "login.html",
-        landingPage: "index.html",
-        rememberDays: 7,
-        sessionHours: 12,
-    };
+    const API_BASE_URL = "http://127.0.0.1:8000";
+    const SESSION_KEY = "perun_auth_session_v1";
 
-    /* --- OBSŁUGA CIASTECZEK (HTTP COOKIES) --- */
-    function setCookie(name, value, maxAgeSeconds) {
-        let cookieStr = `${encodeURIComponent(name)}=${encodeURIComponent(value)}; path=/; SameSite=Lax`;
+    function normalizeUser(rawUser, fallbackEmail = "", fallbackName = "") {
+        const user = rawUser || {};
+        const username =
+            user.username ||
+            user.userName ||
+            fallbackName ||
+            (user.email || fallbackEmail).split("@")[0] ||
+            "Użytkownik";
+        const isFieldAdmin = Boolean(user.fieldadmin || user.isAdmin);
 
-        if (typeof maxAgeSeconds === "number" && maxAgeSeconds > 0) {
-            cookieStr += `; max-age=${Math.floor(maxAgeSeconds)}`;
-        }
-
-        if (window.location.protocol === "https:") {
-            cookieStr += "; Secure";
-        }
-
-        document.cookie = cookieStr;
+        return {
+            id: user.userid ?? user.id ?? null,
+            userid: user.userid ?? user.id ?? null,
+            username,
+            name: username,
+            email: user.email || fallbackEmail,
+            fieldadmin: isFieldAdmin,
+            isAdmin: isFieldAdmin,
+            role: isFieldAdmin ? "admin" : "user",
+        };
     }
 
-    function getCookie(name) {
-        const encodedName = encodeURIComponent(name) + "=";
-        const cookies = document.cookie ? document.cookie.split("; ") : [];
+    function getSession() {
+        try {
+            const raw =
+                localStorage.getItem(SESSION_KEY) ||
+                sessionStorage.getItem(SESSION_KEY);
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            if (!parsed || !parsed.token) return null;
+            parsed.user = normalizeUser(parsed.user);
+            return parsed;
+        } catch {
+            return null;
+        }
+    }
 
-        for (let i = 0; i < cookies.length; i++) {
-            if (cookies[i].startsWith(encodedName)) {
-                return decodeURIComponent(
-                    cookies[i].substring(encodedName.length),
-                );
+    function saveSession(token, rawUser, remember = true) {
+        const sessionObj = {
+            token,
+            user: normalizeUser(rawUser),
+            savedAt: Date.now(),
+        };
+        const serialized = JSON.stringify(sessionObj);
+
+        localStorage.removeItem(SESSION_KEY);
+        sessionStorage.removeItem(SESSION_KEY);
+
+        if (remember) {
+            localStorage.setItem(SESSION_KEY, serialized);
+        } else {
+            sessionStorage.setItem(SESSION_KEY, serialized);
+        }
+        return sessionObj;
+    }
+
+    function clearSession() {
+        localStorage.removeItem(SESSION_KEY);
+        sessionStorage.removeItem(SESSION_KEY);
+    }
+
+    async function postAuthEndpoint(endpointName, payload) {
+        const candidates = [
+            `${API_BASE_URL}/auth/${endpointName}`,
+            `${API_BASE_URL}/${endpointName}`,
+        ];
+
+        let lastError = null;
+
+        for (const url of candidates) {
+            try {
+                const res = await fetch(url, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                });
+
+                if (res.status === 404) continue;
+
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    throw new Error(
+                        data.detail ||
+                            data.msg ||
+                            `Błąd serwera (${res.status})`,
+                    );
+                }
+                return data;
+            } catch (err) {
+                lastError = err;
+                if (
+                    err instanceof TypeError &&
+                    err.message.toLowerCase().includes("fetch")
+                ) {
+                    throw new Error(
+                        "Brak połączenia z backendem FastAPI (http://127.0.0.1:8000). Sprawdź czy kontener Docker działa.",
+                    );
+                }
+                if (err.message && !err.message.includes("404")) {
+                    throw err;
+                }
+            }
+        }
+
+        throw lastError || new Error("Nie znaleziono endpointu autoryzacji.");
+    }
+
+    async function fetchProfile(token) {
+        const candidates = [`${API_BASE_URL}/auth/me`, `${API_BASE_URL}/me`];
+
+        for (const url of candidates) {
+            try {
+                const res = await fetch(url, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                if (res.ok) {
+                    return await res.json();
+                }
+            } catch {
+                /* ignoruj */
             }
         }
         return null;
     }
 
-    function deleteCookie(name) {
-        document.cookie = `${encodeURIComponent(name)}=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`;
-    }
-
-    /* --- KONTO TESTOWE (TRYB MOCK) --- */
-    function ensureDemoUser() {
-        if (!CONFIG.useMockBackend) return;
-        const users = getMockUsers();
-        const demoEmail = "rolnik@perun.pl";
-        if (!users.some((u) => u.email.toLowerCase() === demoEmail)) {
-            users.push({
-                id: "usr_demo_01",
-                fullName: "Jan Kowalski",
-                farmName: "Gospodarstwo Rolne Kowalski",
-                email: demoEmail,
-                passwordHash: simpleHash("Perun2026!"),
-                createdAt: new Date().toISOString(),
-            });
-            localStorage.setItem(CONFIG.mockUsersKey, JSON.stringify(users));
-        }
-    }
-
-    function getMockUsers() {
-        try {
-            return JSON.parse(localStorage.getItem(CONFIG.mockUsersKey)) || [];
-        } catch {
-            return [];
-        }
-    }
-
-    function simpleHash(str) {
-        let hash = 0;
-        for (let i = 0; i < str.length; i++) {
-            hash = (hash << 5) - hash + str.charCodeAt(i);
-            hash |= 0;
-        }
-        return "h_" + Math.abs(hash).toString(16);
-    }
-
-    /* --- ZARZĄDZANIE SESJĄ W CIASTECZKU --- */
-    function saveSession(sessionData, remember) {
-        clearSession();
-
-        const ttlSeconds = remember
-            ? CONFIG.rememberDays * 24 * 60 * 60
-            : CONFIG.sessionHours * 60 * 60;
-
-        const payload = {
-            token: sessionData.token,
-            user: sessionData.user,
-            remember: Boolean(remember),
-            expiresAt: Date.now() + ttlSeconds * 1000,
-        };
-
-        /* remember = true -> ciasteczko trwałe (7 dni); false -> sesyjne (do zamknięcia przeglądarki) */
-        setCookie(
-            CONFIG.sessionCookieName,
-            JSON.stringify(payload),
-            remember ? ttlSeconds : undefined,
-        );
-
-        if (!getCookie(CONFIG.sessionCookieName)) {
-            throw new Error(
-                "Przeglądarka zablokowała zapis ciasteczka sesji. Uruchom projekt przez serwer lokalny (np. http://localhost), a nie bezpośrednio z dysku (file://).",
-            );
-        }
-
-        return payload;
-    }
-
-    function getSession() {
-        const raw = getCookie(CONFIG.sessionCookieName);
-        if (!raw) return null;
-
-        try {
-            const session = JSON.parse(raw);
-            if (!session || !session.token || !session.user) {
-                clearSession();
-                return null;
-            }
-            if (session.expiresAt && Date.now() > session.expiresAt) {
-                clearSession();
-                return null;
-            }
-            return session;
-        } catch {
-            clearSession();
-            return null;
-        }
-    }
-
-    function clearSession() {
-        deleteCookie(CONFIG.sessionCookieName);
-    }
-
-    function isAuthenticated() {
-        return getSession() !== null;
-    }
-
-    /* --- LOGOWANIE --- */
-    async function login({ email, password, remember }) {
-        const normalizedEmail = email.trim().toLowerCase();
-
-        if (CONFIG.useMockBackend) {
-            await delay(200);
-            const users = getMockUsers();
-            const found = users.find(
-                (u) => u.email.toLowerCase() === normalizedEmail,
-            );
-
-            if (!found || found.passwordHash !== simpleHash(password)) {
-                throw new Error("Nieprawidłowy adres e-mail lub hasło.");
-            }
-
-            return saveSession(
-                {
-                    token: "perun_tok_" + cryptoRandomId(),
-                    user: {
-                        id: found.id,
-                        fullName: found.fullName,
-                        farmName: found.farmName,
-                        email: found.email,
-                    },
-                },
-                remember,
-            );
-        }
-
-        const response = await fetch(`${CONFIG.apiBaseUrl}/login`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({
-                email: normalizedEmail,
-                password,
-                remember,
-            }),
+    async function login({ email, password, remember = true }) {
+        const data = await postAuthEndpoint("login", {
+            email: email.trim(),
+            password,
         });
 
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-            throw new Error(data.detail || data.message || "Błąd logowania.");
+        const token = data.access_token;
+        if (!token) {
+            throw new Error("Serwer nie zwrócił tokenu dostępu.");
         }
 
-        return saveSession(
-            {
-                token: data.access_token || data.token || "cookie_auth",
-                user: data.user,
-            },
-            remember,
-        );
+        let userProfile = data.user || (await fetchProfile(token));
+        if (!userProfile) {
+            userProfile = { email: email.trim() };
+        }
+
+        return saveSession(token, userProfile, remember);
     }
 
-    /* --- REJESTRACJA --- */
-    async function register({ fullName, farmName, email, password }) {
-        const normalizedEmail = email.trim().toLowerCase();
+    async function register({ userName, username, email, password }) {
+        const cleanUsername = (userName || username || "").trim();
+        const cleanEmail = email.trim();
 
-        if (CONFIG.useMockBackend) {
-            await delay(250);
-            const users = getMockUsers();
+        const data = await postAuthEndpoint("register", {
+            username: cleanUsername,
+            email: cleanEmail,
+            password,
+        });
 
-            if (users.some((u) => u.email.toLowerCase() === normalizedEmail)) {
-                throw new Error(
-                    "Konto z tym adresem e-mail już istnieje w systemie Perun.",
-                );
-            }
-
-            const newUser = {
-                id: "usr_" + cryptoRandomId(),
-                fullName: fullName.trim(),
-                farmName: farmName.trim() || "Moje gospodarstwo",
-                email: normalizedEmail,
-                passwordHash: simpleHash(password),
-                createdAt: new Date().toISOString(),
+        if (data.access_token) {
+            const userProfile = data.user || {
+                username: cleanUsername,
+                email: cleanEmail,
+                fieldadmin: false,
             };
-
-            users.push(newUser);
-            localStorage.setItem(CONFIG.mockUsersKey, JSON.stringify(users));
-
-            return saveSession(
-                {
-                    token: "perun_tok_" + cryptoRandomId(),
-                    user: {
-                        id: newUser.id,
-                        fullName: newUser.fullName,
-                        farmName: newUser.farmName,
-                        email: newUser.email,
-                    },
-                },
-                true,
-            );
+            return saveSession(data.access_token, userProfile, true);
         }
 
-        const response = await fetch(`${CONFIG.apiBaseUrl}/register`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({
-                full_name: fullName.trim(),
-                farm_name: farmName.trim(),
-                email: normalizedEmail,
-                password,
-            }),
+        return await login({
+            email: cleanEmail,
+            password,
+            remember: true,
         });
-
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-            throw new Error(
-                data.detail || data.message || "Nie udało się utworzyć konta.",
-            );
-        }
-
-        return saveSession(
-            {
-                token: data.access_token || data.token || "cookie_auth",
-                user: data.user,
-            },
-            true,
-        );
     }
 
-    /* --- WYLOGOWANIE --- */
-    async function logout(redirectTo = CONFIG.landingPage) {
-        if (!CONFIG.useMockBackend) {
-            await fetch(`${CONFIG.apiBaseUrl}/logout`, {
-                method: "POST",
-                credentials: "include",
-            }).catch(() => {});
-        }
+    function logout(redirectUrl = "index.html") {
         clearSession();
-        window.location.href = redirectTo;
+        window.location.href = redirectUrl;
     }
 
-    /* --- HELPER DO ZAPYTAŃ API --- */
-    async function authFetch(url, options = {}) {
+    async function authFetch(path, options = {}) {
         const session = getSession();
         const headers = new Headers(options.headers || {});
-        if (session && session.token && session.token !== "cookie_auth") {
+        if (!headers.has("Content-Type") && options.body) {
+            headers.set("Content-Type", "application/json");
+        }
+        if (session && session.token) {
             headers.set("Authorization", `Bearer ${session.token}`);
         }
-        const res = await fetch(url, {
-            ...options,
-            headers,
-            credentials: "include",
-        });
+
+        const fullUrl = path.startsWith("http")
+            ? path
+            : `${API_BASE_URL}${path.startsWith("/") ? "" : "/"}${path}`;
+
+        const res = await fetch(fullUrl, { ...options, headers });
         if (res.status === 401) {
             clearSession();
-            window.location.href = CONFIG.loginPage;
         }
         return res;
     }
 
-    /* --- OCHRONA PODSTRON --- */
-    let guardExecuted = false;
-
-    function enforceRouteGuards() {
-        if (guardExecuted || !document.body) return;
-        guardExecuted = true;
-
-        const requireAuth = document.body.dataset.requireAuth === "true";
-        const guestOnly = document.body.dataset.guestOnly === "true";
+    function applyPageGuardsAndUi() {
         const session = getSession();
+        const body = document.body;
 
-        if (requireAuth && !session) {
-            document.documentElement.style.visibility = "hidden";
-            const currentPath =
-                window.location.pathname.split("/").pop() || "panel.html";
-            const search = window.location.search || "";
-            window.location.replace(
-                `${CONFIG.loginPage}?redirect=${encodeURIComponent(currentPath + search)}`,
-            );
-            return;
+        if (body) {
+            if (body.dataset.guestOnly === "true" && session) {
+                window.location.replace("panel.html");
+                return;
+            }
+
+            if (body.dataset.requireAuth === "true" && !session) {
+                const current = encodeURIComponent(
+                    window.location.pathname.split("/").pop() || "panel.html",
+                );
+                window.location.replace(`login.html?redirect=${current}`);
+                return;
+            }
         }
 
-        if (guestOnly && session) {
-            document.documentElement.style.visibility = "hidden";
-            const params = new URLSearchParams(window.location.search);
-            const target =
-                params.get("redirect") || CONFIG.defaultRedirectAfterLogin;
-            window.location.replace(target);
-            return;
-        }
-
-        document.documentElement.style.visibility = "";
-    }
-
-    function initRouteGuardObserver() {
-        if (document.body) {
-            enforceRouteGuards();
-            return;
-        }
-
-        const observer = new MutationObserver(() => {
-            if (document.body) {
-                observer.disconnect();
-                enforceRouteGuards();
+        document.querySelectorAll("[data-user-name]").forEach((el) => {
+            if (session && session.user) {
+                el.textContent = session.user.username;
             }
         });
-        observer.observe(document.documentElement, { childList: true });
-    }
-
-    /* --- AKTUALIZACJA NAWIGACJI I DANYCH UŻYTKOWNIKA --- */
-    function renderNavigationState() {
-        const session = getSession();
-        const navContainers = document.querySelectorAll("[data-auth-nav]");
-
-        navContainers.forEach((nav) => {
-            if (session) {
-                nav.innerHTML = `
-                    <a href="wyszukiwarka.html" class="nav-link">Wyszukiwarka działek</a>
-                    <a href="panel.html" class="nav-link">Panel gospodarstwa</a>
-                    <span class="user-session-badge" title="${escapeHtml(session.user.email)}">
-                        <span class="user-session-dot"></span>
-                        ${escapeHtml(session.user.fullName)}
-                    </span>
-                    <button type="button" class="btn-logout" data-logout-btn>Wyloguj</button>
-                `;
-            } else {
-                nav.innerHTML = `
-                    <a href="wyszukiwarka.html" class="nav-link">Wyszukiwarka działek</a>
-                    <a href="register.html" class="nav-link">Rejestracja</a>
-                    <a href="login.html" class="btn btn-primary btn-sm">Zaloguj się</a>
-                `;
-            }
-        });
-
-        if (session) {
-            document.querySelectorAll("[data-user-name]").forEach((el) => {
-                el.textContent = session.user.fullName;
-            });
-            document.querySelectorAll("[data-user-email]").forEach((el) => {
-                el.textContent = session.user.email;
-            });
-            document.querySelectorAll("[data-user-farm]").forEach((el) => {
-                el.textContent = session.user.farmName || "Moje gospodarstwo";
-            });
-        }
 
         document.querySelectorAll("[data-logout-btn]").forEach((btn) => {
-            btn.addEventListener("click", () => logout(CONFIG.landingPage));
+            btn.addEventListener("click", (e) => {
+                e.preventDefault();
+                logout("index.html");
+            });
+        });
+
+        document.querySelectorAll("[data-auth-nav]").forEach((nav) => {
+            if (!session) return;
+
+            const adminBadge = session.user.fieldadmin
+                ? ` <span style="font-size:0.72rem;padding:0.12rem 0.45rem;border-radius:999px;background:#eef6ee;color:#15803d;border:1px solid #bfe3c2;">Admin</span>`
+                : "";
+
+            nav.innerHTML = `
+                <a href="panel.html" class="nav-link">Moje działki</a>
+                <a href="wyszukiwarka.html" class="nav-link">Wyszukiwarka działek</a>
+                <span class="nav-link" style="font-weight:600;cursor:default;">
+                    ${session.user.username}${adminBadge}
+                </span>
+                <button type="button" id="navLogoutBtn" class="btn btn-primary btn-sm">
+                    Wyloguj
+                </button>
+            `;
+
+            document
+                .getElementById("navLogoutBtn")
+                ?.addEventListener("click", () => logout("index.html"));
         });
     }
 
-    function startCookieWatcher() {
-        let lastAuthState = isAuthenticated();
-        setInterval(() => {
-            const currentAuthState = isAuthenticated();
-            if (lastAuthState && !currentAuthState) {
-                if (
-                    document.body &&
-                    document.body.dataset.requireAuth === "true"
-                ) {
-                    window.location.replace(CONFIG.loginPage);
-                } else {
-                    window.location.reload();
-                }
-            }
-            lastAuthState = currentAuthState;
-        }, 1500);
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", applyPageGuardsAndUi);
+    } else {
+        applyPageGuardsAndUi();
     }
-
-    function delay(ms) {
-        return new Promise((resolve) => setTimeout(resolve, ms));
-    }
-
-    function cryptoRandomId() {
-        return (
-            Math.random().toString(36).substring(2, 10) +
-            Date.now().toString(36)
-        );
-    }
-
-    function escapeHtml(text) {
-        const div = document.createElement("div");
-        div.textContent = text;
-        return div.innerHTML;
-    }
-
-    ensureDemoUser();
-    initRouteGuardObserver();
-
-    document.addEventListener("DOMContentLoaded", () => {
-        enforceRouteGuards();
-        renderNavigationState();
-        startCookieWatcher();
-    });
 
     window.PerunAuth = {
+        API_BASE_URL,
+        getSession,
+        saveSession,
+        clearSession,
         login,
         register,
         logout,
-        getSession,
-        isAuthenticated,
         authFetch,
-        getCookie,
-        setCookie,
-        deleteCookie,
     };
 })();

@@ -41,7 +41,7 @@
 
         <main class="search-page-main">
             <div id="perun-geoportal-widget" class="perun-gp-widget">
-                <!-- NAGŁÓWEK WYSZUKIWARKI + SLOT ADMINISTRATORA -->
+                <!-- NAGŁÓWEK WYSZUKIWARKI + AKCJE UŻYTKOWNIKA / ADMINISTRATORA -->
                 <div class="gp-page-header">
                     <div>
                         <span class="hero-badge"
@@ -56,22 +56,46 @@
                         </p>
                     </div>
 
-                    <!-- PRZYGOTOWANE MIEJSCE DLA ADMINISTRATORA (BEZ IMPLEMENTACJI) -->
                     <div
-                        id="perunAdminWatchContainer"
-                        class="gp-admin-watch-slot"
-                        data-role-required="admin"
-                        hidden
+                        style="
+                            display: flex;
+                            flex-wrap: wrap;
+                            gap: 0.65rem;
+                            align-items: center;
+                        "
                     >
-                        <span class="gp-admin-tag">Administrator</span>
-                        <button
-                            type="button"
-                            id="btnAddWatchedParcel"
-                            class="btn-admin-watch"
-                            data-action="add-watched-parcel"
+                        <!-- Widoczne dla każdego zalogowanego użytkownika -->
+                        <div
+                            id="perunUserSaveContainer"
+                            class="gp-admin-watch-slot"
+                            hidden
                         >
-                            + Dodaj do działek obserwowanych
-                        </button>
+                            <button
+                                type="button"
+                                id="btnSaveUserParcel"
+                                class="btn-admin-watch"
+                            >
+                                + Zapisz w Moich działkach
+                            </button>
+                        </div>
+
+                        <!-- Przygotowane miejsce dla administratora pola (fieldadmin) -->
+                        <div
+                            id="perunAdminWatchContainer"
+                            class="gp-admin-watch-slot"
+                            data-role-required="admin"
+                            hidden
+                        >
+                            <span class="gp-admin-tag">Administrator pola</span>
+                            <button
+                                type="button"
+                                id="btnAddWatchedParcel"
+                                class="btn-admin-watch"
+                                data-action="add-watched-parcel"
+                            >
+                                + Dodaj do działek obserwowanych
+                            </button>
+                        </div>
                     </div>
                 </div>
 
