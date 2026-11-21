@@ -1,4 +1,23 @@
 services:
+    backend:
+        build:
+            context: .
+            dockerfile: backend/Dockerfile
+        container_name: etoile-backend
+        working_dir: /workspace
+        volumes:
+            - ./backend:/workspace
+        ports:
+            - "127.0.0.1:8000:8000"
+        depends_on:
+            - postgres_db
+        restart: unless-stopped
+        stdin_open: true
+        tty: true
+        networks:
+            main:  
+                ipv4_address: 192.168.0.3
+                
     postgres_db:
         image: postgres:15
         container_name: hacknation_database
@@ -12,5 +31,14 @@ services:
         volumes:
             - pgdata:/var/lib/postgresql/data
             - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+            - ./data.sql:/docker-entrypoint-initdb.d/data.sql
+        networks:
+            main:  
+                ipv4_address: 192.168.0.4
 volumes:
     pgdata:
+networks:
+    main:
+        ipam:
+            config:
+                - subnet: 192.168.0.0/24

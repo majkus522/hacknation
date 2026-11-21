@@ -1,5 +1,5 @@
 CREATE TABLE Users (
-    usedId SERIAL PRIMARY KEY,
+    userId SERIAL PRIMARY KEY,
     username VARCHAR(100) NOT NULL UNIQUE,
     email VARCHAR(255) UNIQUE NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
@@ -19,18 +19,18 @@ CREATE TABLE Fields (
 
 CREATE TABLE UserFields (
 	id SERIAL PRIMARY KEY,
-	userId INT REFERENCES Users(usedId),
+	userId INT REFERENCES Users(userId),
 	fieldId INT REFERENCES Fields(fieldId)
 );
 
-CREATE TABLE SensorType (
+CREATE TABLE SensorTypes (
 	typeId SERIAL PRIMARY KEY,
 	name VARCHAR(255) UNIQUE NOT NULL
 );
 
-CREATE TABLE Sensor (
+CREATE TABLE Sensors (
     sensorId SERIAL PRIMARY KEY,
     fieldId INT REFERENCES Fields(fieldId),
-    typeId INT REFERENCES SensorType(typeId),
+    typeId INT REFERENCES SensorTypes(typeId),
     value FLOAT NOT NULL
 );
