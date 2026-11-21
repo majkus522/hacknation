@@ -10,8 +10,7 @@ services:
         ports:
             - "127.0.0.1:8000:8000"
         depends_on:
-            imgw_import:
-                condition: service_completed_successfully
+            - postgres_db
         restart: unless-stopped
         stdin_open: true
         tty: true
@@ -31,38 +30,15 @@ services:
             - "5400:5432"
         volumes:
             - pgdata:/var/lib/postgresql/data
-            - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
-        healthcheck:
-            test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
-            interval: 5s
-            timeout: 5s
-            retries: 20
+            - ./backend/scripts/data/imgw/processed/stations.csv:/data/stations.csv
+            - ./backend/scripts/data/imgw/processed/precipitation_daily.csv:/data/precipitation_daily.csv
+            - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+            - ./imgw_import.sql:/docker-entrypoint-initdb.d/imgw_import.sql
         networks:
             main:
                 ipv4_address: 192.168.0.4
-
-    imgw_import:
-        image: postgres:15
-        environment:
-            PGHOST: postgres_db
-            PGPORT: "5432"
-            PGDATABASE: hacknation_db
-            PGUSER: hacknation_admin
-            PGPASSWORD: supertajnehaslo123
-        volumes:
-            - ./imgw_import.sql:/scripts/imgw_import.sql:ro
-            - ./backend/scripts/data/imgw/processed:/data:ro
-        command: ["psql", "-X", "-v", "ON_ERROR_STOP=1", "-f", "/scripts/imgw_import.sql"]
-        depends_on:
-            postgres_db:
-                condition: service_healthy
-        restart: "no"
-        networks:
-            main:
-
 volumes:
     pgdata:
-
 networks:
     main:
         ipam:
