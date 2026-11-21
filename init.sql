@@ -24,14 +24,14 @@ CREATE TABLE UserFields (
 );
 
 CREATE TABLE SensorTypes (
-	typeId SERIAL PRIMARY KEY,
+	id SERIAL PRIMARY KEY,
 	name VARCHAR(255) UNIQUE NOT NULL
 );
 
 CREATE TABLE Sensors (
     sensorId SERIAL PRIMARY KEY,
     fieldId INT REFERENCES Fields(fieldId),
-    typeId INT REFERENCES SensorTypes(typeId),
+    typeId INT REFERENCES SensorTypes(id),
     value FLOAT NOT NULL
 );
 
@@ -46,7 +46,13 @@ INSERT INTO SensorTypes (name) VALUES
 ('Termometr');
 
 INSERT INTO Fields (name, size) VALUES
+('ggfd', 2.43),
 ('tgfgfd', 0.43);
 
 INSERT INTO Users (username, email, password) VALUES
 ('test111', 'test@gmail.com', '$2b$12$T0YYGaopDQg6n.pYbfuNLuFcD1VE9qJx/rJx4QrO8gcpi./usMiWK');
+
+INSERT INTO Sensors (fieldId, typeId, value) VALUES 
+(1, 1, 0.4),
+(1, 1, 0.5),
+(2, 1, 0.6);

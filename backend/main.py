@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routes import auth, field
+from routes import auth, field, sensor
 
 app = FastAPI()
 
@@ -24,3 +24,4 @@ def root():
 
 app.include_router(auth.router, prefix="/auth")
 app.include_router(field.router, prefix="/field")
+app.include_router(sensor.router, prefix="/sensor")
