@@ -117,7 +117,10 @@
         for (const url of candidates) {
             try {
                 const res = await fetch(url, {
-                    headers: { Authorization: `Bearer ${token}` },
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        token: token,
+                    },
                 });
                 if (res.ok) {
                     return await res.json();
@@ -187,6 +190,7 @@
         }
         if (session && session.token) {
             headers.set("Authorization", `Bearer ${session.token}`);
+            headers.set("token", session.token);
         }
 
         const fullUrl = path.startsWith("http")

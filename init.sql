@@ -13,9 +13,10 @@ CREATE TABLE SoilTypes (
 
 CREATE TABLE Fields (
     fieldId SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    size FLOAT NOT NULL,
-    soilType INT REFERENCES SoilTypes(id)
+	name VARCHAR(100) NOT NULL UNIQUE,
+    y FLOAT NOT NULL,
+    x FLOAT NOT NULL,
+    points JSONB NOT NULL
 );
 
 CREATE TABLE UserFields (
@@ -46,9 +47,13 @@ INSERT INTO SensorTypes (name) VALUES
 ('Czujnik wilgoci'),
 ('Termometr');
 
-INSERT INTO Fields (name, size, soilType) VALUES
-('ggfd', 2.43, 2),
-('tgfgfd', 0.43, 3);
+INSERT INTO Fields (x, y, name, points)
+VALUES (
+    0.42,
+    0.68,
+    'Pole Tomka',
+    '[{"x": 0.0, "y": 0.1}, {"x": 0.85, "y": 0.15}, {"x": 1.0, "y": 0.9}]'
+);
 
 INSERT INTO Users (username, email, password) VALUES
 ('test111', 'test@gmail.com', '$2b$12$T0YYGaopDQg6n.pYbfuNLuFcD1VE9qJx/rJx4QrO8gcpi./usMiWK');
