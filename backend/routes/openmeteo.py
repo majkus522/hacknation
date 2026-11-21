@@ -4,7 +4,6 @@ import api.openmeteo as om
 
 router = APIRouter()
 
-
 @router.get("/test-weather")
 def test_weather():
     latitude = 52.2297
