@@ -4,7 +4,7 @@ from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
 
-DATABASE_URL = "postgresql+psycopg2://hacknation_admin:supertajnehaslo123@127.0.0.1:5400/hacknation_db"
+DATABASE_URL = "postgresql+psycopg2://hacknation_admin:supertajnehaslo123@192.168.0.4:5400/hacknation_db"
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
