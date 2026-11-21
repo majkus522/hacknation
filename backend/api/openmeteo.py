@@ -44,3 +44,39 @@ def get_historical_weather_data(latitude, longitude, start_date, end_date):
 
     daily_dataframe = pd.DataFrame(data = daily_data)
     print("\nDaily data\n", daily_dataframe)
+
+def get_forecast_weather_data(latitude, longitude):
+    """
+    Pobieranie prognozy pogody z API Open-Meteo na podstawie podanej 
+    szerokości i długości geograficznej.
+    """
+    url = "https://api.open-meteo.com/v1/forecast"
+    params = {
+        "latitude": latitude,
+        "longitude": longitude,
+        "hourly": "Rain",
+    }
+
+    responses = openmeteo.weather_api(url, params = params)
+
+    response = responses[0]
+    print(f"Coordinates: {abs(response.Latitude())}°{'S' if response.Latitude() < 0 else 'N'} {abs(response.Longitude())}°{'W' if response.Longitude() < 0 else 'E'}")
+    print(f"Elevation: {response.Elevation()} m asl")
+    print(f"Timezone difference to GMT+0: {response.UtcOffsetSeconds()}s")
+
+    hourly = response.Hourly()
+    hourly_rain = hourly.Variables(0).ValuesAsNumpy()
+
+    hourly_data = {
+        "date": pd.date_range(
+            start = pd.to_datetime(hourly.Time(), unit = "s", utc = True),
+            end =  pd.to_datetime(hourly.TimeEnd(), unit = "s", utc = True),
+            freq = pd.Timedelta(seconds = hourly.Interval()),
+            inclusive = "left"
+        )
+    }
+
+    hourly_data["rain"] = hourly_rain
+
+    hourly_dataframe = pd.DataFrame(data = hourly_data)
+    print("\nHourly data\n", hourly_dataframe)
