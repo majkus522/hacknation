@@ -7,3 +7,4 @@ class Field(Base):
     fieldid = Column(Integer, primary_key=True)
     name = Column(String)
     size = Column(Float)
+    soiltype = Column(Integer, ForeignKey('soiltypes.id'))

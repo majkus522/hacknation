@@ -7,14 +7,15 @@ CREATE TABLE Users (
 );
 
 CREATE TABLE SoilTypes (
-	typeId SERIAL PRIMARY KEY,
+	id SERIAL PRIMARY KEY,
 	name VARCHAR(100) NOT NULL UNIQUE
 );
 
 CREATE TABLE Fields (
     fieldId SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
-    size FLOAT NOT NULL
+    size FLOAT NOT NULL,
+    soilType INT REFERENCES SoilTypes(id)
 );
 
 CREATE TABLE UserFields (
@@ -45,9 +46,9 @@ INSERT INTO SensorTypes (name) VALUES
 ('Czujnik wilgoci'),
 ('Termometr');
 
-INSERT INTO Fields (name, size) VALUES
-('ggfd', 2.43),
-('tgfgfd', 0.43);
+INSERT INTO Fields (name, size, soilType) VALUES
+('ggfd', 2.43, 2),
+('tgfgfd', 0.43, 3);
 
 INSERT INTO Users (username, email, password) VALUES
 ('test111', 'test@gmail.com', '$2b$12$T0YYGaopDQg6n.pYbfuNLuFcD1VE9qJx/rJx4QrO8gcpi./usMiWK');
