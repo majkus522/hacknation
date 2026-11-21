@@ -3,7 +3,7 @@ services:
         build:
             context: .
             dockerfile: backend/Dockerfile
-        container_name: etoile-backend
+        container_name: hacknation-backend
         working_dir: /workspace
         volumes:
             - ./backend:/workspace
@@ -31,7 +31,6 @@ services:
         volumes:
             - pgdata:/var/lib/postgresql/data
             - ./init.sql:/docker-entrypoint-initdb.d/init.sql
-            - ./data.sql:/docker-entrypoint-initdb.d/data.sql
         networks:
             main:  
                 ipv4_address: 192.168.0.4

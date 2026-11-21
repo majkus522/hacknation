@@ -6,7 +6,7 @@ CREATE TABLE Users (
     fieldAdmin BOOLEAN DEFAULT FALSE
 );
 
-CREATE TABLE SoilType (
+CREATE TABLE SoilTypes (
 	typeId SERIAL PRIMARY KEY,
 	name VARCHAR(100) NOT NULL UNIQUE
 );
@@ -34,3 +34,19 @@ CREATE TABLE Sensors (
     typeId INT REFERENCES SensorTypes(typeId),
     value FLOAT NOT NULL
 );
+
+INSERT INTO SoilTypes (name) VALUES
+('Gleba brunatna'),
+('Gleba płowa'),
+('Gleba bielicowa'),
+('Gleba rdzawa');
+
+INSERT INTO SensorTypes (name) VALUES
+('Czujnik wilgoci'),
+('Termometr');
+
+INSERT INTO Fields (name, size) VALUES
+('tgfgfd', 0.43);
+
+INSERT INTO Users (username, email, password) VALUES
+('test111', 'test@gmail.com', '$2b$12$T0YYGaopDQg6n.pYbfuNLuFcD1VE9qJx/rJx4QrO8gcpi./usMiWK');
