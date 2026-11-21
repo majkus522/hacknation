@@ -1,0 +1,640 @@
+<!doctype html>
+<html lang="pl">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Perun – Wyszukiwarka i normalizacja kształtu działki</title>
+        <style>
+            /* Izolowane style gotowe do wklejenia w strukturę Peruna */
+            .perun-gp-widget {
+                font-family:
+                    system-ui,
+                    -apple-system,
+                    sans-serif;
+                max-width: 1020px;
+                margin: 20px auto;
+                color: #1f2937;
+                box-sizing: border-box;
+            }
+            .perun-gp-widget *,
+            .perun-gp-widget *::before,
+            .perun-gp-widget *::after {
+                box-sizing: inherit;
+            }
+            .perun-gp-panel {
+                background: #ffffff;
+                border: 1px solid #d1d5db;
+                border-radius: 8px;
+                padding: 16px;
+                margin-bottom: 14px;
+            }
+            .perun-gp-row {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                margin-bottom: 10px;
+                align-items: center;
+            }
+            .perun-gp-row:last-child {
+                margin-bottom: 0;
+            }
+            .perun-gp-label {
+                font-size: 13px;
+                font-weight: 600;
+                min-width: 185px;
+            }
+            .perun-gp-input {
+                flex: 1;
+                min-width: 220px;
+                padding: 8px 10px;
+                border: 1px solid #d1d5db;
+                border-radius: 6px;
+                font-size: 14px;
+            }
+            .perun-gp-btn {
+                padding: 8px 16px;
+                background: #1d4ed8;
+                color: #ffffff;
+                border: none;
+                border-radius: 6px;
+                font-size: 14px;
+                font-weight: 600;
+                cursor: pointer;
+            }
+            .perun-gp-btn:hover {
+                background: #1e40af;
+            }
+            .perun-gp-toggles {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 18px;
+                font-size: 13px;
+                padding-top: 4px;
+            }
+            .perun-gp-toggles label {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                cursor: pointer;
+            }
+            .perun-gp-status {
+                padding: 10px 12px;
+                border-radius: 6px;
+                font-size: 14px;
+                margin-bottom: 14px;
+                display: none;
+            }
+            .perun-gp-status.error {
+                display: block;
+                background: #fef2f2;
+                color: #991b1b;
+                border: 1px solid #fecaca;
+            }
+            .perun-gp-status.ok {
+                display: block;
+                background: #ecfdf5;
+                color: #065f46;
+                border: 1px solid #a7f3d0;
+            }
+            .perun-gp-workspace {
+                display: grid;
+                grid-template-columns: 1fr 330px;
+                gap: 16px;
+            }
+            @media (max-width: 840px) {
+                .perun-gp-workspace {
+                    grid-template-columns: 1fr;
+                }
+            }
+            .perun-gp-map-box {
+                position: relative;
+                width: 100%;
+                aspect-ratio: 4 / 3;
+                background: #ffffff;
+                border: 1px solid #9ca3af;
+                border-radius: 8px;
+                overflow: hidden;
+            }
+            .perun-gp-map-box img,
+            .perun-gp-map-box canvas {
+                position: absolute;
+                inset: 0;
+                width: 100%;
+                height: 100%;
+                display: block;
+            }
+            .perun-gp-output-box {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+            .perun-gp-output-title {
+                font-size: 12px;
+                font-weight: 600;
+                color: #374151;
+            }
+            .perun-gp-textarea {
+                width: 100%;
+                flex: 1;
+                min-height: 340px;
+                font-family: ui-monospace, monospace;
+                font-size: 12px;
+                padding: 10px;
+                border: 1px solid #d1d5db;
+                border-radius: 8px;
+                background: #f9fafb;
+                resize: vertical;
+            }
+        </style>
+    </head>
+    <body>
+        <!-- Kontener modułu do osadzenia w Perunie -->
+        <div id="perun-geoportal-widget" class="perun-gp-widget">
+            <div class="perun-gp-panel">
+                <div class="perun-gp-row">
+                    <label class="perun-gp-label" for="perunTerytInput"
+                        >Identyfikator działki (TERYT):</label
+                    >
+                    <input
+                        id="perunTerytInput"
+                        class="perun-gp-input"
+                        type="text"
+                        value="181103_2.0022.90/2"
+                        placeholder="np. 181103_2.0022.90/2"
+                    />
+                    <button
+                        type="button"
+                        class="perun-gp-btn"
+                        onclick="PerunGeoportal.szukajDzialki('id')"
+                    >
+                        Pobierz po ID
+                    </button>
+                </div>
+
+                <div class="perun-gp-row">
+                    <label class="perun-gp-label" for="perunXyInput"
+                        >Współrzędne (lon, lat):</label
+                    >
+                    <input
+                        id="perunXyInput"
+                        class="perun-gp-input"
+                        type="text"
+                        placeholder="np. 21.4256, 50.2871"
+                    />
+                    <button
+                        type="button"
+                        class="perun-gp-btn"
+                        onclick="PerunGeoportal.szukajDzialki('xy')"
+                    >
+                        Pobierz po XY
+                    </button>
+                </div>
+
+                <div class="perun-gp-toggles">
+                    <label>
+                        <input
+                            type="checkbox"
+                            id="perunChkContour"
+                            checked
+                            onchange="PerunGeoportal.odswiezPodklad()"
+                        />
+                        Podkład konturowy działek (EGiB)
+                    </label>
+                    <label>
+                        <input
+                            type="checkbox"
+                            id="perunChkBuildings"
+                            checked
+                            onchange="PerunGeoportal.odswiezPodklad()"
+                        />
+                        Kontury budynków i numery
+                    </label>
+                </div>
+            </div>
+
+            <div id="perunStatusBox" class="perun-gp-status"></div>
+
+            <div class="perun-gp-workspace">
+                <div class="perun-gp-map-box">
+                    <img id="perunWmsContour" alt="Mapa konturowa EGiB" />
+                    <canvas
+                        id="perunDzialkaCanvas"
+                        width="800"
+                        height="600"
+                    ></canvas>
+                </div>
+                <div class="perun-gp-output-box">
+                    <div class="perun-gp-output-title">
+                        Znormalizowane punkty kształtu [0..1] (wypisane też w
+                        konsoli):
+                    </div>
+                    <textarea
+                        id="perunPunktyOutput"
+                        class="perun-gp-textarea"
+                        readonly
+                        placeholder="Znormalizowane punkty [{ x, y }, ...] pojawią się tutaj i w konsoli..."
+                    ></textarea>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            const PerunGeoportal = (() => {
+                const ULDK_ENDPOINT = "https://uldk.gugik.gov.pl/";
+                const WMS_EGIB_ENDPOINT =
+                    "https://integracja.gugik.gov.pl/cgi-bin/KrajowaIntegracjaEwidencjiGruntow";
+
+                const state = {
+                    ostatniBboxStr: "",
+                    ostatniKsztalt: null,
+                };
+
+                function pokazStatus(tresc, typ) {
+                    const box = document.getElementById("perunStatusBox");
+                    box.textContent = tresc;
+                    box.className = "perun-gp-status " + typ;
+                }
+
+                function pobierzWarstwyKonturowe() {
+                    const showParcels =
+                        document.getElementById("perunChkContour").checked;
+                    const showDetails =
+                        document.getElementById("perunChkBuildings").checked;
+
+                    const layers = [];
+                    if (showParcels) layers.push("dzialki");
+                    if (showDetails) layers.push("numery_dzialek", "budynki");
+                    return layers.join(",");
+                }
+
+                function odswiezPodklad() {
+                    const img = document.getElementById("perunWmsContour");
+                    const canvas =
+                        document.getElementById("perunDzialkaCanvas");
+                    const layers = pobierzWarstwyKonturowe();
+
+                    if (!layers || !state.ostatniBboxStr) {
+                        img.style.display = "none";
+                        return;
+                    }
+
+                    img.style.display = "block";
+                    const egibParams = new URLSearchParams({
+                        SERVICE: "WMS",
+                        VERSION: "1.1.1",
+                        REQUEST: "GetMap",
+                        LAYERS: layers,
+                        STYLES: "",
+                        SRS: "EPSG:4326",
+                        BBOX: state.ostatniBboxStr,
+                        WIDTH: canvas.width,
+                        HEIGHT: canvas.height,
+                        FORMAT: "image/png",
+                        TRANSPARENT: "TRUE",
+                    });
+                    img.src = `${WMS_EGIB_ENDPOINT}?${egibParams.toString()}`;
+                }
+
+                async function szukajDzialki(tryb) {
+                    const url = new URL(ULDK_ENDPOINT);
+                    url.searchParams.set(
+                        "result",
+                        "id,voivodeship,county,commune,region,parcel,geom_wkt",
+                    );
+                    url.searchParams.set("srid", "4326");
+
+                    if (tryb === "id") {
+                        const idVal = document
+                            .getElementById("perunTerytInput")
+                            .value.trim();
+                        if (!idVal) {
+                            pokazStatus(
+                                "Wpisz identyfikator działki.",
+                                "error",
+                            );
+                            return;
+                        }
+                        url.searchParams.set("request", "GetParcelById");
+                        url.searchParams.set("id", idVal);
+                    } else {
+                        const parts = document
+                            .getElementById("perunXyInput")
+                            .value.split(",")
+                            .map((s) => s.trim());
+                        if (
+                            parts.length < 2 ||
+                            isNaN(Number(parts[0])) ||
+                            isNaN(Number(parts[1]))
+                        ) {
+                            pokazStatus(
+                                "Podaj współrzędne w formacie: długość, szerokość (np. 21.4256, 50.2871).",
+                                "error",
+                            );
+                            return;
+                        }
+                        url.searchParams.set("request", "GetParcelByXY");
+                        url.searchParams.set(
+                            "xy",
+                            `${parts[0]},${parts[1]},4326`,
+                        );
+                    }
+
+                    pokazStatus("Pobieranie konturu działki z ULDK...", "ok");
+
+                    try {
+                        const response = await fetch(url.toString());
+                        if (!response.ok) {
+                            throw new Error(
+                                `Błąd serwera HTTP ${response.status}`,
+                            );
+                        }
+
+                        const text = await response.text();
+                        const lines = text.trim().split(/\r?\n/);
+
+                        if (
+                            !lines.length ||
+                            lines[0].trim() !== "0" ||
+                            !lines[1]
+                        ) {
+                            pokazStatus(
+                                `Nie znaleziono działki (odpowiedź ULDK: ${text.trim()}).`,
+                                "error",
+                            );
+                            return;
+                        }
+
+                        const [id, woj, pow, gm, obreb, nr, wkt] =
+                            lines[1].split("|");
+                        const pierscienie = parsujWKT(wkt);
+                        const zewnetrznyObrys = pierscienie[0] || [];
+
+                        if (!zewnetrznyObrys.length) {
+                            pokazStatus(
+                                "Nie udało się odczytać punktów z geometrii WKT.",
+                                "error",
+                            );
+                            return;
+                        }
+
+                        // Normalizacja kształtu pod kątem dalszego wyszukiwania kształtów w Perunie
+                        const znormalizowany =
+                            normalizujKsztalt(zewnetrznyObrys);
+
+                        const wynikDlaPeruna = {
+                            id,
+                            lokalizacja: { woj, pow, gm, obreb, nr },
+                            punktyGeo: zewnetrznyObrys,
+                            punktyZnormalizowane: znormalizowany.punkty01,
+                            punktyWysrodkowane: znormalizowany.punktyCentered,
+                            proporcje: znormalizowany.proporcje,
+                        };
+
+                        state.ostatniKsztalt = wynikDlaPeruna;
+
+                        // Wyświetlenie w panelu i szczegółowy zrzut do konsoli (F12)
+                        document.getElementById("perunPunktyOutput").value =
+                            JSON.stringify(znormalizowany.punkty01, null, 2);
+
+                        console.group(
+                            `Perun – Znormalizowany kształt działki: ${id}`,
+                        );
+                        console.log(
+                            "Punkty znormalizowane [0..1] (zachowane proporcje):",
+                            znormalizowany.punkty01,
+                        );
+                        console.log(
+                            "Punkty wyśrodkowane względem środka ciężkości:",
+                            znormalizowany.punktyCentered,
+                        );
+                        console.log(
+                            "Pełny obiekt kształtu dla Peruna:",
+                            wynikDlaPeruna,
+                        );
+                        console.groupEnd();
+
+                        // Wysłanie zdarzenia DOM dla aplikacji nadrzędnej (Perun)
+                        document.dispatchEvent(
+                            new CustomEvent("perun:ksztaltGotowy", {
+                                detail: wynikDlaPeruna,
+                            }),
+                        );
+
+                        // Uzupełnij pole XY środkiem działki
+                        const avgLon = (
+                            zewnetrznyObrys.reduce((s, p) => s + p.lon, 0) /
+                            zewnetrznyObrys.length
+                        ).toFixed(6);
+                        const avgLat = (
+                            zewnetrznyObrys.reduce((s, p) => s + p.lat, 0) /
+                            zewnetrznyObrys.length
+                        ).toFixed(6);
+                        if (
+                            !document
+                                .getElementById("perunXyInput")
+                                .value.trim()
+                        ) {
+                            document.getElementById("perunXyInput").value =
+                                `${avgLon}, ${avgLat}`;
+                        }
+
+                        pokazStatus(
+                            `Działka ${id} (obręb ${obreb}, nr ${nr}) — wierzchołków po normalizacji: ${znormalizowany.punkty01.length}`,
+                            "ok",
+                        );
+
+                        rysujKonturNaCanvas(pierscienie, pierscienie.flat());
+                        return wynikDlaPeruna;
+                    } catch (err) {
+                        pokazStatus(
+                            `Błąd połączenia z ULDK: ${err.message}`,
+                            "error",
+                        );
+                    }
+                }
+
+                function parsujWKT(wkt) {
+                    if (!wkt) return [];
+                    const clean = wkt.replace(/^SRID=\d+;/i, "").trim();
+                    const ringMatches = clean.match(/\(\s*([-\d.,\s]+)\s*\)/g);
+                    if (!ringMatches) return [];
+
+                    return ringMatches.map((ringStr) =>
+                        ringStr
+                            .replace(/[()]/g, "")
+                            .trim()
+                            .split(",")
+                            .map((pair) => {
+                                const [a, b] = pair
+                                    .trim()
+                                    .split(/\s+/)
+                                    .map(Number);
+                                return a > 40 && b < 30
+                                    ? { lon: b, lat: a }
+                                    : { lon: a, lat: b };
+                            })
+                            .filter((pt) => !isNaN(pt.lon) && !isNaN(pt.lat)),
+                    );
+                }
+
+                /**
+                 * Normalizuje wielokąt działki:
+                 * 1. Usuwa powtórzony punkt zamykający obrys.
+                 * 2. Koryguje oś X przez cos(lat), aby zachować rzeczywiste proporcje terenowe.
+                 * 3. Skaluje równomiernie do przedziału [0, 1] oraz wyznacza wersję wyśrodkowaną (centroid 0,0).
+                 */
+                function normalizujKsztalt(punktyGeo) {
+                    const pts = [...punktyGeo];
+                    if (pts.length > 2) {
+                        const pierwszy = pts[0];
+                        const ostatni = pts[pts.length - 1];
+                        if (
+                            Math.abs(pierwszy.lon - ostatni.lon) < 1e-9 &&
+                            Math.abs(pierwszy.lat - ostatni.lat) < 1e-9
+                        ) {
+                            pts.pop();
+                        }
+                    }
+
+                    const midLat =
+                        pts.reduce((s, p) => s + p.lat, 0) / pts.length;
+                    const cosLat = Math.cos((midLat * Math.PI) / 180);
+
+                    const planar = pts.map((p) => ({
+                        x: p.lon * cosLat,
+                        y: p.lat,
+                    }));
+
+                    const xs = planar.map((p) => p.x);
+                    const ys = planar.map((p) => p.y);
+                    const minX = Math.min(...xs);
+                    const maxX = Math.max(...xs);
+                    const minY = Math.min(...ys);
+                    const maxY = Math.max(...ys);
+
+                    const width = maxX - minX;
+                    const height = maxY - minY;
+                    const maxSpan = Math.max(width, height) || 1;
+
+                    // Wariant 1: zakres [0, 1] z zachowaniem proporcji (oś Y skierowana w górę)
+                    const punkty01 = planar.map((p) => ({
+                        x: Number(((p.x - minX) / maxSpan).toFixed(6)),
+                        y: Number(((p.y - minY) / maxSpan).toFixed(6)),
+                    }));
+
+                    // Wariant 2: wyśrodkowany względem środka ciężkości (do algorytmów porównywania kształtów)
+                    const cx =
+                        punkty01.reduce((s, p) => s + p.x, 0) / punkty01.length;
+                    const cy =
+                        punkty01.reduce((s, p) => s + p.y, 0) / punkty01.length;
+                    const punktyCentered = punkty01.map((p) => ({
+                        x: Number((p.x - cx).toFixed(6)),
+                        y: Number((p.y - cy).toFixed(6)),
+                    }));
+
+                    return {
+                        punkty01,
+                        punktyCentered,
+                        proporcje: Number((width / (height || 1)).toFixed(4)),
+                    };
+                }
+
+                function rysujKonturNaCanvas(pierscienie, wszystkiePunkty) {
+                    const canvas =
+                        document.getElementById("perunDzialkaCanvas");
+                    const ctx = canvas.getContext("2d");
+
+                    const lons = wszystkiePunkty.map((p) => p.lon);
+                    const lats = wszystkiePunkty.map((p) => p.lat);
+                    const minLon = Math.min(...lons);
+                    const maxLon = Math.max(...lons);
+                    const minLat = Math.min(...lats);
+                    const maxLat = Math.max(...lats);
+
+                    const midLat = (minLat + maxLat) / 2;
+                    const cosLat = Math.cos((midLat * Math.PI) / 180);
+                    const margin = 1.4;
+
+                    let spanX = Math.max(
+                        (maxLon - minLon) * cosLat * margin,
+                        0.0005,
+                    );
+                    let spanY = Math.max((maxLat - minLat) * margin, 0.0005);
+                    const ratio = canvas.width / canvas.height;
+
+                    if (spanX / spanY > ratio) spanY = spanX / ratio;
+                    else spanX = spanY * ratio;
+
+                    const centerLon = (minLon + maxLon) / 2;
+                    const centerLat = (minLat + maxLat) / 2;
+
+                    const bbox = {
+                        minLon: centerLon - spanX / cosLat / 2,
+                        maxLon: centerLon + spanX / cosLat / 2,
+                        minLat: centerLat - spanY / 2,
+                        maxLat: centerLat + spanY / 2,
+                    };
+
+                    state.ostatniBboxStr = `${bbox.minLon},${bbox.minLat},${bbox.maxLon},${bbox.maxLat}`;
+                    odswiezPodklad();
+
+                    const naPiksele = (pt) => ({
+                        x:
+                            ((pt.lon - bbox.minLon) /
+                                (bbox.maxLon - bbox.minLon)) *
+                            canvas.width,
+                        y:
+                            canvas.height -
+                            ((pt.lat - bbox.minLat) /
+                                (bbox.maxLat - bbox.minLat)) *
+                                canvas.height,
+                    });
+
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                    pierscienie.forEach((punkty) => {
+                        if (!punkty.length) return;
+
+                        ctx.beginPath();
+                        punkty.forEach((pt, idx) => {
+                            const { x, y } = naPiksele(pt);
+                            if (idx === 0) ctx.moveTo(x, y);
+                            else ctx.lineTo(x, y);
+                        });
+                        ctx.closePath();
+
+                        // Styl konturowy dostosowany do jasnej mapy ewidencyjnej
+                        ctx.fillStyle = "rgba(37, 99, 235, 0.14)";
+                        ctx.fill();
+                        ctx.lineWidth = 2.5;
+                        ctx.strokeStyle = "#1d4ed8";
+                        ctx.stroke();
+
+                        // Wierzchołki działki
+                        ctx.fillStyle = "#ffffff";
+                        ctx.strokeStyle = "#1e3a8a";
+                        ctx.lineWidth = 2;
+                        punkty.forEach((pt) => {
+                            const { x, y } = naPiksele(pt);
+                            ctx.beginPath();
+                            ctx.arc(x, y, 4, 0, Math.PI * 2);
+                            ctx.fill();
+                            ctx.stroke();
+                        });
+                    });
+                }
+
+                window.addEventListener("DOMContentLoaded", () => {
+                    szukajDzialki("id");
+                });
+
+                return {
+                    szukajDzialki,
+                    odswiezPodklad,
+                    normalizujKsztalt,
+                    pobierzOstatniKsztalt: () => state.ostatniKsztalt,
+                };
+            })();
+        </script>
+    </body>
+</html>
