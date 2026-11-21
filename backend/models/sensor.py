@@ -4,7 +4,7 @@ from database import Base
 class Sensor(Base):
     __tablename__ = "sensors"
 
-    sensorId = Column(Integer, primary_key=True)
-    fieldId = Column(Integer, ForeignKey('fields.fieldId'))
-    typeId = Column(Integer, ForeignKey('sensortypes.typeId'))
+    sensorid = Column(Integer, primary_key=True)
+    fieldid = Column(Integer, ForeignKey('fields.fieldid'))
+    typeid = Column(Integer, ForeignKey('sensortypes.id'))
     value = Column(Float)

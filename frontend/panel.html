@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="pl">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Perun – Twoje działki</title>
+        <link rel="stylesheet" href="./styles/main.css" />
+        <link rel="stylesheet" href="./styles/auth.css" />
+        <link rel="stylesheet" href="./styles/panel.css" />
+        <script src="./scripts/auth.js"></script>
+        <script src="./scripts/panel.js" defer></script>
+    </head>
+    <body data-require-auth="true">
+        <header class="topbar">
+            <div class="topbar-left">
+                <a
+                    href="panel.html"
+                    class="brand-link"
+                    aria-label="Lista działek Perun"
+                >
+                    <img
+                        src="./images/perun_logo_black.svg"
+                        class="logo-topbar"
+                        alt="Perun"
+                    />
+                </a>
+                <div class="topbar-divider"></div>
+                <span class="topbar-section-title">Panel gospodarstwa</span>
+            </div>
+
+            <div class="topbar-right">
+                <a href="wyszukiwarka.html" class="btn btn-primary btn-sm">
+                    + Wyszukaj i dodaj działkę
+                </a>
+                <span class="user-session-badge">
+                    <span class="user-session-dot"></span>
+                    <span data-user-name>Użytkownik</span>
+                </span>
+                <button type="button" class="btn-logout" data-logout-btn>
+                    Wyloguj
+                </button>
+            </div>
+        </header>
+
+        <main class="panel-main">
+            <div class="panel-container">
+                <div class="panel-header">
+                    <div>
+                        <h1>Twoje działki</h1>
+                        <p class="panel-subtitle">
+                            Kliknij wybraną działkę, aby otworzyć jej mapę,
+                            czujki oraz szczegółową analizę.
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        id="btnRefreshFields"
+                        class="btn-outline"
+                    >
+                        Odśwież listę
+                    </button>
+                </div>
+
+                <div
+                    id="panelAlert"
+                    class="panel-alert hidden"
+                    role="status"
+                ></div>
+
+                <!-- LISTA DZIAŁEK Z TABELI FIELDS -->
+                <section
+                    id="fieldsList"
+                    class="fields-list"
+                    aria-label="Lista zapisanych działek"
+                ></section>
+            </div>
+        </main>
+
+        <footer>
+            <div class="footer-content">
+                <span>&copy; 2026 Perun. Wszelkie prawa zastrzeżone.</span>
+                <div class="footer-links">
+                    <a href="#">Regulamin</a>
+                    <a href="#">Polityka prywatności</a>
+                    <a href="#">Kontakt</a>
+                </div>
+            </div>
+        </footer>
+    </body>
+</html>

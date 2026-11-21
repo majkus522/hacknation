@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="pl">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Perun – Wyszukiwarka działek i analiza środowiskowa</title>
+        <link rel="stylesheet" href="./styles/main.css" />
+        <link rel="stylesheet" href="./styles/landing.css" />
+        <link rel="stylesheet" href="./styles/auth.css" />
+        <link rel="stylesheet" href="./styles/wyszukiwarka.css" />
+        <script src="./scripts/auth.js"></script>
+        <script src="./scripts/wyszukiwarka.js" defer></script>
+    </head>
+    <body>
+        <!-- NAWIGACJA PERUN (obsługuje gości oraz zalogowanych użytkowników) -->
+        <header class="navbar">
+            <div class="navbar-container">
+                <a
+                    href="index.html"
+                    class="brand-link"
+                    aria-label="Strona główna Perun"
+                >
+                    <img
+                        src="./images/perun_logo_black.svg"
+                        class="logo-topbar"
+                        alt="Perun"
+                    />
+                </a>
+
+                <nav class="nav-actions" data-auth-nav>
+                    <a href="wyszukiwarka.html" class="nav-link">
+                        Wyszukiwarka działek
+                    </a>
+                    <a href="register.html" class="nav-link">Rejestracja</a>
+                    <a href="login.html" class="btn btn-primary btn-sm">
+                        Zaloguj się
+                    </a>
+                </nav>
+            </div>
+        </header>
+
+        <main class="search-page-main">
+            <div id="perun-geoportal-widget" class="perun-gp-widget">
+                <!-- NAGŁÓWEK WYSZUKIWARKI + AKCJE UŻYTKOWNIKA / ADMINISTRATORA -->
+                <div class="gp-page-header">
+                    <div>
+                        <span class="hero-badge"
+                            >Ewidencja gruntów i warunki siedliskowe</span
+                        >
+                        <h1>Wyszukiwarka działek</h1>
+                        <p class="gp-page-subtitle">
+                            Sprawdź granice oraz znormalizowany kształt działki
+                            z bazy ULDK/EGiB, a także przeanalizuj historyczne
+                            parametry meteorologiczne i geologiczne dla
+                            wybranego obszaru.
+                        </p>
+                    </div>
+
+                    <div
+                        style="
+                            display: flex;
+                            flex-wrap: wrap;
+                            gap: 0.65rem;
+                            align-items: center;
+                        "
+                    >
+                        <!-- Widoczne dla każdego zalogowanego użytkownika -->
+                        <div
+                            id="perunUserSaveContainer"
+                            class="gp-admin-watch-slot"
+                            hidden
+                        >
+                            <button
+                                type="button"
+                                id="btnSaveUserParcel"
+                                class="btn-admin-watch"
+                            >
+                                + Zapisz w Moich działkach
+                            </button>
+                        </div>
+
+                        <!-- Przygotowane miejsce dla administratora pola (fieldadmin) -->
+                        <div
+                            id="perunAdminWatchContainer"
+                            class="gp-admin-watch-slot"
+                            data-role-required="admin"
+                            hidden
+                        >
+                            <span class="gp-admin-tag">Administrator pola</span>
+                            <button
+                                type="button"
+                                id="btnAddWatchedParcel"
+                                class="btn-admin-watch"
+                                data-action="add-watched-parcel"
+                            >
+                                + Dodaj do działek obserwowanych
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PANEL WYSZUKIWANIA -->
+                <section
+                    class="perun-gp-panel"
+                    aria-label="Formularz wyszukiwania działki"
+                >
+                    <div class="perun-gp-search-grid">
+                        <div class="perun-gp-field-group">
+                            <label class="perun-gp-label" for="perunTerytInput">
+                                Identyfikator działki (TERYT):
+                            </label>
+                            <div class="perun-gp-input-row">
+                                <input
+                                    id="perunTerytInput"
+                                    class="perun-gp-input"
+                                    type="text"
+                                    value="181103_2.0022.90/2"
+                                    placeholder="np. 181103_2.0022.90/2"
+                                />
+                                <button
+                                    type="button"
+                                    id="btnSearchById"
+                                    class="perun-gp-btn"
+                                >
+                                    Pobierz po ID
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="perun-gp-field-group">
+                            <label class="perun-gp-label" for="perunXyInput">
+                                Współrzędne:
+                            </label>
+                            <div class="perun-gp-input-row">
+                                <input
+                                    id="perunXyInput"
+                                    class="perun-gp-input"
+                                    type="text"
+                                    placeholder="np. 21.4256, 50.2871"
+                                />
+                                <button
+                                    type="button"
+                                    id="btnSearchByXy"
+                                    class="perun-gp-btn"
+                                >
+                                    Pobierz po XY
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="perun-gp-toggles">
+                        <label>
+                            <input
+                                type="checkbox"
+                                id="perunChkContour"
+                                checked
+                            />
+                            Podkład konturowy działek (EGiB)
+                        </label>
+                        <label>
+                            <input
+                                type="checkbox"
+                                id="perunChkBuildings"
+                                checked
+                            />
+                            Kontury budynków i numery
+                        </label>
+                    </div>
+                </section>
+
+                <!-- STATUS OPERACJI -->
+                <div
+                    id="perunStatusBox"
+                    class="perun-gp-status"
+                    role="status"
+                ></div>
+
+                <!-- MAPA KONTOUROWA I NORMALIZACJA KSZTAŁTU -->
+                <section
+                    class="perun-gp-workspace"
+                    aria-label="Podgląd konturu i geometrii działki"
+                >
+                    <article class="gp-card">
+                        <div class="gp-card-header">
+                            <h2 class="gp-card-title">
+                                Kontur działki na podkładzie EGiB
+                            </h2>
+                            <span class="gp-card-badge" id="gpParcelIdBadge">
+                                EPSG:4326
+                            </span>
+                        </div>
+
+                        <div class="perun-gp-map-box">
+                            <img
+                                id="perunWmsContour"
+                                alt="Mapa konturowa EGiB"
+                            />
+                            <canvas
+                                id="perunDzialkaCanvas"
+                                width="800"
+                                height="600"
+                            ></canvas>
+                        </div>
+
+                        <div class="gp-parcel-meta" id="gpParcelMeta">
+                            <div class="gp-meta-item">
+                                <span>Województwo</span>
+                                <strong id="metaWoj">—</strong>
+                            </div>
+                            <div class="gp-meta-item">
+                                <span>Powiat</span>
+                                <strong id="metaPow">—</strong>
+                            </div>
+                            <div class="gp-meta-item">
+                                <span>Gmina</span>
+                                <strong id="metaGm">—</strong>
+                            </div>
+                            <div class="gp-meta-item">
+                                <span>Obręb</span>
+                                <strong id="metaObreb">—</strong>
+                            </div>
+                            <div class="gp-meta-item">
+                                <span>Numer działki</span>
+                                <strong id="metaNr">—</strong>
+                            </div>
+                            <div class="gp-meta-item">
+                                <span>Proporcje (szer./wys.)</span>
+                                <strong id="metaRatio">—</strong>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="gp-card">
+                        <div class="gp-card-header">
+                            <h2 class="gp-card-title">
+                                Znormalizowany kształt [0..1]
+                            </h2>
+                            <button
+                                type="button"
+                                id="btnCopyPointsJson"
+                                class="gp-copy-btn"
+                            >
+                                Kopiuj JSON
+                            </button>
+                        </div>
+                        <textarea
+                            id="perunPunktyOutput"
+                            class="perun-gp-textarea"
+                            readonly
+                            placeholder="Znormalizowane punkty [{ x, y }, ...] pojawią się tutaj i w konsoli..."
+                        ></textarea>
+                    </article>
+                </section>
+
+                <!-- DANE HISTORYCZNE: METEOROLOGIA I GEOLOGIA -->
+                <section
+                    class="gp-env-grid"
+                    aria-label="Historyczne parametry meteorologiczne i geologiczne"
+                >
+                    <!-- KARTA METEOROLOGICZNA -->
+                    <article class="gp-card" data-api-hook="meteo-history">
+                        <div class="gp-card-header">
+                            <h2 class="gp-card-title">
+                                Dane historyczne – Meteorologia
+                            </h2>
+                            <select
+                                id="meteoPeriodSelect"
+                                class="gp-select"
+                                aria-label="Okres danych meteorologicznych"
+                            >
+                                <option value="12m">
+                                    Ostatnie 12 miesięcy
+                                </option>
+                                <option value="veg">Sezon wegetacyjny</option>
+                                <option value="5y">Średnia 5-letnia</option>
+                            </select>
+                        </div>
+
+                        <div class="gp-kpi-row">
+                            <div class="gp-kpi-box">
+                                <div class="gp-kpi-label">
+                                    Suma opadów atmosferycznych
+                                </div>
+                                <div class="gp-kpi-value" id="meteoRain">
+                                    — mm
+                                </div>
+                                <div class="gp-kpi-sub" id="meteoRainNote">
+                                    Oczekiwanie na działkę
+                                </div>
+                            </div>
+                            <div class="gp-kpi-box">
+                                <div class="gp-kpi-label">
+                                    Średnia temperatura powietrza
+                                </div>
+                                <div class="gp-kpi-value" id="meteoTemp">
+                                    — °C
+                                </div>
+                                <div class="gp-kpi-sub" id="meteoTempNote">
+                                    Oczekiwanie na działkę
+                                </div>
+                            </div>
+                        </div>
+
+                        <table class="gp-data-table">
+                            <thead>
+                                <tr>
+                                    <th>Parametr meteorologiczny</th>
+                                    <th>Wartość historyczna</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Średnia wilgotność warstwy ornej</td>
+                                    <td id="meteoSoilMoisture">—</td>
+                                </tr>
+                                <tr>
+                                    <td>Usłonecznienie całkowite</td>
+                                    <td id="meteoSunshine">—</td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        Liczba dni z przymrozkami (&lt; 0°C)
+                                    </td>
+                                    <td id="meteoFrostDays">—</td>
+                                </tr>
+                                <tr>
+                                    <td>Najdłuższy ciąg dni bezopadowych</td>
+                                    <td id="meteoDrySpell">—</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <p class="gp-source-note">
+                            Zakres wyznaczany dla centroidu wybranej działki
+                            (gotowe do podpięcia pod API IMGW / Open-Meteo).
+                        </p>
+                    </article>
+
+                    <!-- KARTA GEOLOGICZNA I GLEBOWA -->
+                    <article class="gp-card" data-api-hook="geo-history">
+                        <div class="gp-card-header">
+                            <h2 class="gp-card-title">
+                                Dane historyczne – Geologia i gleba
+                            </h2>
+                            <span class="gp-card-badge">Profil gruntu</span>
+                        </div>
+
+                        <div class="gp-kpi-row">
+                            <div class="gp-kpi-box">
+                                <div class="gp-kpi-label">
+                                    Dominujący typ gleby
+                                </div>
+                                <div class="gp-kpi-value" id="geoSoilType">
+                                    —
+                                </div>
+                                <div class="gp-kpi-sub" id="geoClass">
+                                    Klasa bonitacyjna: —
+                                </div>
+                            </div>
+                            <div class="gp-kpi-box">
+                                <div class="gp-kpi-label">
+                                    Odczyn pH / Zwierciadło wód
+                                </div>
+                                <div class="gp-kpi-value" id="geoPh">—</div>
+                                <div class="gp-kpi-sub" id="geoWaterTable">
+                                    Wody gruntowe: —
+                                </div>
+                            </div>
+                        </div>
+
+                        <table class="gp-data-table">
+                            <thead>
+                                <tr>
+                                    <th>Parametr geologiczno-glebowy</th>
+                                    <th>Charakterystyka</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Utwór geologiczny podłoża</td>
+                                    <td id="geoBedrock">—</td>
+                                </tr>
+                                <tr>
+                                    <td>Przepuszczalność i retencja wodna</td>
+                                    <td id="geoPermeability">—</td>
+                                </tr>
+                                <tr>
+                                    <td>Kompleks przydatności rolniczej</td>
+                                    <td id="geoComplex">—</td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        Średnia wysokość n.p.m. / nachylenie
+                                    </td>
+                                    <td id="geoElevation">—</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <p class="gp-source-note">
+                            Dane siedliskowe i litologiczne dla lokalizacji
+                            działki (gotowe do integracji z warstwami PIG-PIB /
+                            IUNG).
+                        </p>
+                    </article>
+                </section>
+            </div>
+        </main>
+
+        <!-- STOPKA SPÓJNA Z RESZTĄ PERUNA -->
+        <footer>
+            <div class="footer-content">
+                <span>&copy; 2026 Perun. Wszelkie prawa zastrzeżone.</span>
+                <div class="footer-links">
+                    <a href="#">Regulamin</a>
+                    <a href="#">Polityka prywatności</a>
+                    <a href="#">Kontakt</a>
+                </div>
+            </div>
+        </footer>
+    </body>
+</html>

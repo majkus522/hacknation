@@ -7,14 +7,16 @@ CREATE TABLE Users (
 );
 
 CREATE TABLE SoilTypes (
-	typeId SERIAL PRIMARY KEY,
+	id SERIAL PRIMARY KEY,
 	name VARCHAR(100) NOT NULL UNIQUE
 );
 
 CREATE TABLE Fields (
     fieldId SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    size FLOAT NOT NULL
+	name VARCHAR(100) NOT NULL UNIQUE,
+    y FLOAT NOT NULL,
+    x FLOAT NOT NULL,
+    points JSONB NOT NULL
 );
 
 CREATE TABLE UserFields (
@@ -24,15 +26,22 @@ CREATE TABLE UserFields (
 );
 
 CREATE TABLE SensorTypes (
-	typeId SERIAL PRIMARY KEY,
+	id SERIAL PRIMARY KEY,
 	name VARCHAR(255) UNIQUE NOT NULL
 );
 
 CREATE TABLE Sensors (
     sensorId SERIAL PRIMARY KEY,
     fieldId INT REFERENCES Fields(fieldId),
-    typeId INT REFERENCES SensorTypes(typeId),
+    typeId INT REFERENCES SensorTypes(id),
     value FLOAT NOT NULL
+);
+
+CREATE TABLE Logs (
+	logId SERIAL PRIMARY KEY,
+	userId INT REFERENCES Users(userId),
+	action VARCHAR(100) NOT NULL,
+	time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 INSERT INTO SoilTypes (name) VALUES
@@ -45,8 +54,18 @@ INSERT INTO SensorTypes (name) VALUES
 ('Czujnik wilgoci'),
 ('Termometr');
 
-INSERT INTO Fields (name, size) VALUES
-('tgfgfd', 0.43);
+INSERT INTO Fields (x, y, name, points)
+VALUES (
+    0.42,
+    0.68,
+    'Pole Tomka',
+    '[{"x": 0.0, "y": 0.1}, {"x": 0.85, "y": 0.15}, {"x": 1.0, "y": 0.9}]'
+);
 
 INSERT INTO Users (username, email, password) VALUES
 ('test111', 'test@gmail.com', '$2b$12$T0YYGaopDQg6n.pYbfuNLuFcD1VE9qJx/rJx4QrO8gcpi./usMiWK');
+
+INSERT INTO Sensors (fieldId, typeId, value) VALUES 
+(1, 1, 0.4),
+(1, 2, 0.5),
+(2, 1, 0.6);
