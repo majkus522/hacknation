@@ -48,7 +48,7 @@
     }
 
     /* Zapisuje wyszukaną działkę w panelu zalogowanego użytkownika (panel.html) */
-    function zapiszDzialkeDlaUzytkownika() {
+    async function zapiszDzialkeDlaUzytkownika() {
         const session = window.PerunAuth?.getSession?.();
         if (!session) {
             window.location.href = "login.html?redirect=wyszukiwarka.html";
@@ -60,76 +60,43 @@
             return;
         }
 
-        const storageKey = `perun_saved_parcels_${session.user.id || "default"}`;
-        const fallbackKey = "perun_saved_parcels_v1";
-
-        const pts = [...state.ostatniKsztalt.punktyGeo];
-        if (pts.length > 2) {
-            const first = pts[0];
-            const last = pts[pts.length - 1];
-            if (
-                Math.abs(first.lon - last.lon) < 1e-9 &&
-                Math.abs(first.lat - last.lat) < 1e-9
-            ) {
-                pts.pop();
-            }
-        }
-
-        const refLon = pts[0].lon;
-        const refLat = pts[0].lat;
-        const cosLat = Math.cos((refLat * Math.PI) / 180);
-
-        const corners = pts.map((p, idx) => ({
-            id: `P${idx + 1}`,
-            x: Number(((p.lon - refLon) * 111320 * cosLat).toFixed(1)),
-            y: Number(((refLat - p.lat) * 110540).toFixed(1)),
-        }));
-
-        let areaM2 = 0;
-        for (let i = 0; i < corners.length; i++) {
-            const j = (i + 1) % corners.length;
-            areaM2 += corners[i].x * corners[j].y - corners[j].x * corners[i].y;
-        }
-        const areaHa = Math.max(
-            0.01,
-            Number((Math.abs(areaM2) / 2 / 10000).toFixed(2)),
-        );
-
-        const currentTempText =
-            document.getElementById("meteoTemp")?.textContent || "14.2";
-        const parsedTemp = parseFloat(currentTempText) || 14.2;
-
-        const newParcel = {
-            id: `parcel-${Date.now()}`,
-            terytId: state.ostatniKsztalt.id,
-            name: `Działka ${state.ostatniKsztalt.lokalizacja.nr} (${state.ostatniKsztalt.lokalizacja.obreb})`,
-            crop: "Uprawa nieprzypisana",
-            areaHa,
-            todayFieldReading: {
-                date: new Date().toISOString().slice(0, 10),
-                temp: parsedTemp,
-                moisture: 31.0,
-            },
-            corners,
-            sensors: [],
+        const payload = {
+            name: `${state.ostatniKsztalt.id} (${state.ostatniKsztalt.lokalizacja.obreb} ${state.ostatniKsztalt.lokalizacja.nr})`,
+            x: state.ostatniKsztalt.centroid.lon,
+            y: state.ostatniKsztalt.centroid.lat,
+            points: state.ostatniKsztalt.punktyZnormalizowane,
         };
 
-        const existingRaw =
-            localStorage.getItem(storageKey) ||
-            localStorage.getItem(fallbackKey);
-        const list = existingRaw ? JSON.parse(existingRaw) : [];
+        try {
+            let res = await window.PerunAuth.authFetch("/field", {
+                method: "POST",
+                body: JSON.stringify(payload),
+            });
 
-        const filtered = list.filter((p) => p.terytId !== newParcel.terytId);
-        filtered.unshift(newParcel);
+            if (res.status === 404 || res.status === 405) {
+                res = await window.PerunAuth.authFetch("/field/", {
+                    method: "POST",
+                    body: JSON.stringify(payload),
+                });
+            }
 
-        const serialized = JSON.stringify(filtered);
-        localStorage.setItem(storageKey, serialized);
-        localStorage.setItem(fallbackKey, serialized);
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(
+                    data.detail || data.msg || `Błąd zapisu (${res.status})`,
+                );
+            }
 
-        pokazStatus(
-            `Zapisano działkę ${newParcel.terytId} w Twoim panelu. Przejdź do zakładki „Moje działki”, aby ją zobaczyć.`,
-            "ok",
-        );
+            pokazStatus(
+                `Zapisano działkę "${payload.name}" w bazie (tabela Fields). Otwórz „Moje działki”, aby ją podejrzeć.`,
+                "ok",
+            );
+        } catch (err) {
+            pokazStatus(
+                `Nie udało się zapisać działki: ${err.message}`,
+                "error",
+            );
+        }
     }
 
     /* Zaślepka pod przyszłą implementację dodawania do obserwowanych przez administratora */

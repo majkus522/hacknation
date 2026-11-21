@@ -2,145 +2,13 @@
     "use strict";
 
     const SVG_NS = "http://www.w3.org/2000/svg";
-
-    function getUserStorageKey() {
-        const session = window.PerunAuth?.getSession?.();
-        const uid = session?.user?.id || "default";
-        return `perun_saved_parcels_${uid}`;
-    }
-
-    /* --- SZABLONY ZAPISANYCH DZIAŁEK UŻYTKOWNIKA --- */
-    function createTemplateParcels() {
-        return [
-            {
-                id: "tpl-1",
-                terytId: "181103_2.0022.90/2",
-                name: "Działka #1 (Template) – Brak aktywnych czujek",
-                crop: "Pszenica ozima",
-                areaHa: 5.42,
-                todayFieldReading: {
-                    date: new Date().toISOString().slice(0, 10),
-                    temp: 14.2,
-                    moisture: 31.0,
-                },
-                corners: [
-                    { id: "P1", x: 0, y: 0 },
-                    { id: "P2", x: 310, y: 18 },
-                    { id: "P3", x: 335, y: 195 },
-                    { id: "P4", x: 42, y: 215 },
-                    { id: "P5", x: -18, y: 105 },
-                ],
-                sensors: [],
-            },
-            {
-                id: "tpl-2",
-                terytId: "181103_2.0022.104/1",
-                name: "Działka #2 – 1 czujka aktywna + 1 offline",
-                crop: "Kukurydza",
-                areaHa: 4.18,
-                todayFieldReading: {
-                    date: new Date().toISOString().slice(0, 10),
-                    temp: 14.2,
-                    moisture: 31.0,
-                },
-                corners: [
-                    { id: "P1", x: 0, y: 0 },
-                    { id: "P2", x: 260, y: 0 },
-                    { id: "P3", x: 280, y: 165 },
-                    { id: "P4", x: 15, y: 175 },
-                ],
-                sensors: [
-                    {
-                        id: "CZ-201",
-                        name: "Czujka Północ-1",
-                        x: 125,
-                        y: 82,
-                        status: "ok",
-                        temp: 17.6,
-                        moisture: 38.4,
-                        lastSeen: "Dziś, 10 min temu",
-                    },
-                    {
-                        id: "CZ-202",
-                        name: "Czujka Południe-2",
-                        x: 215,
-                        y: 135,
-                        status: "offline",
-                        temp: null,
-                        moisture: null,
-                        lastSeen: "Offline (ignorowana)",
-                    },
-                ],
-            },
-            {
-                id: "tpl-3",
-                terytId: "181103_2.0022.118/5",
-                name: "Działka #3 – Pełna interpolacja IDW (3 aktywne)",
-                crop: "Rzepak ozimy",
-                areaHa: 6.85,
-                todayFieldReading: {
-                    date: new Date().toISOString().slice(0, 10),
-                    temp: 14.2,
-                    moisture: 31.0,
-                },
-                corners: [
-                    { id: "P1", x: 20, y: 0 },
-                    { id: "P2", x: 350, y: 25 },
-                    { id: "P3", x: 375, y: 210 },
-                    { id: "P4", x: 195, y: 245 },
-                    { id: "P5", x: 0, y: 190 },
-                ],
-                sensors: [
-                    {
-                        id: "CZ-301",
-                        name: "Czujka Zachód",
-                        x: 75,
-                        y: 95,
-                        status: "ok",
-                        temp: 12.4,
-                        moisture: 42.0,
-                        lastSeen: "Dziś, 5 min temu",
-                    },
-                    {
-                        id: "CZ-302",
-                        name: "Czujka Centrum",
-                        x: 195,
-                        y: 125,
-                        status: "warn",
-                        temp: 16.8,
-                        moisture: 24.5,
-                        lastSeen: "Dziś, 7 min temu",
-                    },
-                    {
-                        id: "CZ-303",
-                        name: "Czujka Wschód",
-                        x: 315,
-                        y: 155,
-                        status: "crit",
-                        temp: 21.3,
-                        moisture: 14.2,
-                        lastSeen: "Dziś, 3 min temu",
-                    },
-                    {
-                        id: "CZ-304",
-                        name: "Czujka Skraj (Offline)",
-                        x: 245,
-                        y: 55,
-                        status: "offline",
-                        temp: null,
-                        moisture: null,
-                        lastSeen: "Offline (ignorowana)",
-                    },
-                ],
-            },
-        ];
-    }
+    const OFFLINE_SENSORS_KEY = "perun_offline_sensors_by_field_v1";
 
     const METRIC_META = {
         temp: {
             label: "Temperatura",
             unit: "°C",
-            min: 5,
+            min: 0,
             max: 28,
             stops: [
                 { t: 0.0, r: 37, g: 99, b: 235 },
@@ -153,7 +21,7 @@
             label: "Wilgotność",
             unit: "%",
             min: 10,
-            max: 55,
+            max: 70,
             stops: [
                 { t: 0.0, r: 220, g: 38, b: 38 },
                 { t: 0.35, r: 234, g: 179, b: 8 },
@@ -177,11 +45,9 @@
         offline: "Offline (ignorowana)",
     };
 
-    const initialParcels = loadParcels();
-
     const state = {
-        parcels: initialParcels,
-        selectedParcelId: initialParcels[0]?.id || "tpl-1",
+        parcels: [],
+        selectedFieldId: null,
         metric: "temp",
         selectedSensorId: null,
         probePoint: null,
@@ -199,57 +65,193 @@
         },
     };
 
-    function loadParcels() {
-        const key = getUserStorageKey();
-        try {
-            const raw =
-                localStorage.getItem(key) ||
-                localStorage.getItem("perun_saved_parcels_v1");
-            if (raw) {
-                const parsed = JSON.parse(raw);
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                    return parsed;
-                }
+    async function fetchJsonSafe(path) {
+        const variants = path.endsWith("/") ? [path] : [`${path}/`, path];
+        for (const url of variants) {
+            try {
+                const res = await window.PerunAuth.authFetch(url);
+                if (res.ok) return await res.json();
+            } catch {
+                /* kolejna próba */
             }
-        } catch {
-            /* fallback do szablonów */
         }
-        const defaults = createTemplateParcels();
-        saveParcels(defaults);
-        return defaults;
+        return null;
     }
 
-    function saveParcels(parcels = state.parcels) {
-        const key = getUserStorageKey();
+    function loadOfflineSensorsMap() {
         try {
-            const serialized = JSON.stringify(parcels);
-            localStorage.setItem(key, serialized);
-            localStorage.setItem("perun_saved_parcels_v1", serialized);
+            return JSON.parse(
+                localStorage.getItem(OFFLINE_SENSORS_KEY) || "{}",
+            );
         } catch {
-            /* ignoruj błąd zapisu w trybie prywatnym */
+            return {};
         }
+    }
+
+    function saveOfflineSensorsForField(fieldId, offlineSensors) {
+        try {
+            const map = loadOfflineSensorsMap();
+            map[String(fieldId)] = offlineSensors;
+            localStorage.setItem(OFFLINE_SENSORS_KEY, JSON.stringify(map));
+        } catch {
+            /* ignoruj */
+        }
+    }
+
+    function buildCornersFromPoints(rawPoints) {
+        let pts = rawPoints;
+        if (typeof pts === "string") {
+            try {
+                pts = JSON.parse(pts);
+            } catch {
+                pts = [];
+            }
+        }
+        if (!Array.isArray(pts) || pts.length < 3) {
+            pts = [
+                { x: 0.0, y: 0.1 },
+                { x: 0.85, y: 0.15 },
+                { x: 1.0, y: 0.9 },
+            ];
+        }
+
+        const isNormalized = pts.every(
+            (p) => Math.abs(Number(p.x)) <= 1.5 && Math.abs(Number(p.y)) <= 1.5,
+        );
+        const factor = isNormalized ? 260 : 1;
+
+        return pts.map((p, idx) => ({
+            id: `P${idx + 1}`,
+            x: Number((Number(p.x) * factor).toFixed(1)),
+            y: Number((Number(p.y) * factor).toFixed(1)),
+        }));
+    }
+
+    function computeCentroid(corners) {
+        const cx =
+            corners.reduce((acc, c) => acc + c.x, 0) / (corners.length || 1);
+        const cy =
+            corners.reduce((acc, c) => acc + c.y, 0) / (corners.length || 1);
+        return { x: cx, y: cy };
+    }
+
+    function classifyDbSensorStatus(typeId, val) {
+        if (typeId === 1) {
+            if (val < 15 || val > 70) return "crit";
+            if (val < 25 || val > 60) return "warn";
+            return "ok";
+        }
+        if (typeId === 2) {
+            if (val < -3 || val > 34) return "crit";
+            if (val < 0 || val > 28) return "warn";
+            return "ok";
+        }
+        return "ok";
+    }
+
+    function hydrateParcels(rawFields, rawSensors) {
+        const offlineMap = loadOfflineSensorsMap();
+        const fieldsArr = Array.isArray(rawFields)
+            ? rawFields
+            : Array.isArray(rawFields?.items)
+              ? rawFields.items
+              : [];
+        const sensorsArr = Array.isArray(rawSensors)
+            ? rawSensors
+            : Array.isArray(rawSensors?.items)
+              ? rawSensors.items
+              : [];
+
+        return fieldsArr.map((f) => {
+            const fieldId = f.fieldid ?? f.fieldId ?? f.field_id ?? f.id;
+            const corners = buildCornersFromPoints(f.points);
+            const centroid = computeCentroid(corners);
+
+            const dbFieldSensors = sensorsArr.filter(
+                (s) =>
+                    Number(s.fieldid ?? s.fieldId ?? s.field_id) ===
+                    Number(fieldId),
+            );
+
+            const activeSensors = dbFieldSensors.map((s, idx) => {
+                const sid = s.sensorid ?? s.sensorId ?? s.sensor_id ?? s.id;
+                const typeId = Number(s.typeid ?? s.typeId ?? s.type_id);
+                const rawVal = Number(s.value);
+
+                const angle =
+                    (idx * 2 * Math.PI) / Math.max(dbFieldSensors.length, 1);
+                const offsetR = dbFieldSensors.length === 1 ? 0 : 28;
+                const sx = Number(
+                    (centroid.x + Math.cos(angle) * offsetR).toFixed(1),
+                );
+                const sy = Number(
+                    (centroid.y + Math.sin(angle) * offsetR).toFixed(1),
+                );
+
+                const isMoisture = typeId === 1;
+                const isTemp = typeId === 2;
+                const moistureVal = isMoisture
+                    ? Number((rawVal <= 1 ? rawVal * 100 : rawVal).toFixed(1))
+                    : null;
+                const tempVal = isTemp ? Number(rawVal.toFixed(1)) : null;
+
+                const status = classifyDbSensorStatus(
+                    typeId,
+                    isMoisture ? moistureVal : tempVal,
+                );
+
+                return {
+                    id: `DB-${sid}`,
+                    name: isMoisture
+                        ? `Czujnik wilgoci #${sid}`
+                        : isTemp
+                          ? `Termometr #${sid}`
+                          : `Czujka #${sid}`,
+                    x: sx,
+                    y: sy,
+                    status,
+                    temp: tempVal,
+                    moisture: moistureVal,
+                    source: "database",
+                    lastSeen: "Baza danych (aktywna)",
+                };
+            });
+
+            const localOffline = Array.isArray(offlineMap[String(fieldId)])
+                ? offlineMap[String(fieldId)]
+                : [];
+
+            return {
+                fieldId,
+                name: f.name || `Działka #${fieldId}`,
+                coordX: Number(f.x ?? 0),
+                coordY: Number(f.y ?? 0),
+                rawPoints: f.points,
+                todayFieldReading: {
+                    date: new Date().toISOString().slice(0, 10),
+                    temp: 14.2,
+                    moisture: 31.0,
+                },
+                corners,
+                sensors: [...activeSensors, ...localOffline],
+            };
+        });
     }
 
     function getCurrentParcel() {
         return (
-            state.parcels.find((p) => p.id === state.selectedParcelId) ||
-            state.parcels[0]
+            state.parcels.find(
+                (p) => String(p.fieldId) === String(state.selectedFieldId),
+            ) || state.parcels[0]
         );
     }
 
-    /* --- LOGIKA CZUJEK AKTYWNYCH VS OFFLINE --- */
     function getActiveSensors(parcel, metric = state.metric) {
-        return (parcel.sensors || []).filter(
+        return (parcel?.sensors || []).filter(
             (s) => s.status !== "offline" && typeof s[metric] === "number",
         );
     }
 
-    /**
-     * Wyznacza wartość w dowolnym punkcie (x, y) działki:
-     * 1. Brak aktywnych czujek -> dzisiejszy odczyt bazowy na polu.
-     * 2. Dokładnie 1 czujka aktywna -> jej wartość nadpisuje całą działkę.
-     * 3. >= 2 czujki aktywne -> interpolacja IDW po czujkach aktywnych (offline są ignorowane).
-     */
     function evaluateValueAt(parcel, x, y, metric = state.metric) {
         const active = getActiveSensors(parcel, metric);
 
@@ -267,9 +269,7 @@
         for (let i = 0; i < active.length; i++) {
             const s = active[i];
             const dist = Math.hypot(x - s.x, y - s.y);
-            if (dist < 0.001) {
-                return s[metric];
-            }
+            if (dist < 0.001) return s[metric];
             const w = 1 / (dist * dist);
             weightedSum += w * s[metric];
             weightTotal += w;
@@ -319,7 +319,6 @@
         };
     }
 
-    /* --- KOLORY HEATMAPY --- */
     function interpolateColor(value, metric = state.metric) {
         const meta = METRIC_META[metric];
         const clamped = Math.max(meta.min, Math.min(meta.max, value));
@@ -331,10 +330,11 @@
             const b = stops[i + 1];
             if (t >= a.t && t <= b.t) {
                 const localT = (t - a.t) / (b.t - a.t || 1);
-                const r = Math.round(a.r + (b.r - a.r) * localT);
-                const g = Math.round(a.g + (b.g - a.g) * localT);
-                const bl = Math.round(a.b + (b.b - a.b) * localT);
-                return [r, g, bl];
+                return [
+                    Math.round(a.r + (b.r - a.r) * localT),
+                    Math.round(a.g + (b.g - a.g) * localT),
+                    Math.round(a.b + (b.b - a.b) * localT),
+                ];
             }
         }
         const last = stops[stops.length - 1];
@@ -390,7 +390,6 @@
         heatmapImage.setAttribute("href", canvas.toDataURL("image/png"));
     }
 
-    /* --- RENDEROWANIE SVG --- */
     function createSvgEl(tag, attrs = {}) {
         const el = document.createElementNS(SVG_NS, tag);
         Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
@@ -456,7 +455,13 @@
 
         (parcel.sensors || []).forEach((sensor) => {
             const isOffline = sensor.status === "offline";
-            const color = STATUS_COLORS[sensor.status] || STATUS_COLORS.offline;
+            const hasMetric = typeof sensor[state.metric] === "number";
+            const effectiveStatus = isOffline
+                ? "offline"
+                : hasMetric
+                  ? sensor.status
+                  : "offline";
+            const color = STATUS_COLORS[effectiveStatus];
             const isSelected = sensor.id === state.selectedSensorId;
 
             const g = createSvgEl("g", {
@@ -471,7 +476,8 @@
                     cy: sensor.y,
                     r: "12",
                     fill: color,
-                    "fill-opacity": isOffline ? "0.18" : "0.28",
+                    "fill-opacity":
+                        effectiveStatus === "offline" ? "0.18" : "0.28",
                 }),
             );
 
@@ -490,16 +496,18 @@
             const tag = createSvgEl("text", {
                 x: sensor.x + 9,
                 y: sensor.y + 3,
-                fill: isOffline ? "#475569" : "#181818",
+                fill: effectiveStatus === "offline" ? "#475569" : "#181818",
                 "font-size": "9.5",
                 "font-weight": "700",
                 "font-family": "system-ui, sans-serif",
             });
 
             const valText =
-                !isOffline && typeof sensor[state.metric] === "number"
+                !isOffline && hasMetric
                     ? `${sensor[state.metric].toFixed(1)}${meta.unit}`
-                    : "OFFLINE";
+                    : isOffline
+                      ? "OFFLINE"
+                      : "inny typ";
             tag.textContent = `${sensor.id} (${valText})`;
             g.appendChild(tag);
 
@@ -540,7 +548,6 @@
         );
     }
 
-    /* --- PANEL BOCZNY I LEGENDA --- */
     function renderLegend() {
         const meta = METRIC_META[state.metric];
         document.getElementById("legendTitle").textContent = `${meta.label}:`;
@@ -569,10 +576,9 @@
         const todayVal = parcel.todayFieldReading[state.metric];
 
         document.getElementById("infoFieldName").textContent =
-            `${parcel.terytId}`;
-        document.getElementById("infoCrop").textContent = parcel.crop;
-        document.getElementById("infoArea").textContent =
-            `${parcel.areaHa.toFixed(2)} ha`;
+            `${parcel.name} (#${parcel.fieldId})`;
+        document.getElementById("infoCoords").textContent =
+            `X: ${parcel.coordX}, Y: ${parcel.coordY}`;
         document.getElementById("infoTodayField").textContent =
             `${todayVal.toFixed(1)} ${meta.unit} (${parcel.todayFieldReading.date})`;
         document.getElementById("infoSensorsCount").textContent =
@@ -625,51 +631,24 @@
                     </div>
                     <div>
                         <dt>Temperatura:</dt>
-                        <dd>${!isOffline && typeof selectedSensor.temp === "number" ? selectedSensor.temp.toFixed(1) + " °C" : "— (offline)"}</dd>
+                        <dd>${!isOffline && typeof selectedSensor.temp === "number" ? selectedSensor.temp.toFixed(1) + " °C" : "—"}</dd>
                     </div>
                     <div>
                         <dt>Wilgotność:</dt>
-                        <dd>${!isOffline && typeof selectedSensor.moisture === "number" ? selectedSensor.moisture.toFixed(1) + " %" : "— (offline)"}</dd>
+                        <dd>${!isOffline && typeof selectedSensor.moisture === "number" ? selectedSensor.moisture.toFixed(1) + " %" : "—"}</dd>
                     </div>
-                    <div><dt>Ostatni kontakt:</dt><dd>${selectedSensor.lastSeen}</dd></div>
+                    <div><dt>Źródło:</dt><dd>${selectedSensor.lastSeen}</dd></div>
                 </dl>
-                <div class="sensor-actions-row">
-                    <button type="button" class="btn-mini" id="btnToggleSensorStatus">
-                        ${isOffline ? "Przełącz na Online" : "Przełącz na Offline"}
-                    </button>
-                    <button type="button" class="btn-mini btn-mini-danger" id="btnDeleteSensor">
-                        Usuń czujkę
-                    </button>
-                </div>
+                ${
+                    selectedSensor.source !== "database"
+                        ? `<div class="sensor-actions-row">
+                            <button type="button" class="btn-mini btn-mini-danger" id="btnDeleteSensor">
+                                Usuń czujkę offline
+                            </button>
+                           </div>`
+                        : ""
+                }
             `;
-
-            document
-                .getElementById("btnToggleSensorStatus")
-                ?.addEventListener("click", () => {
-                    if (selectedSensor.status === "offline") {
-                        selectedSensor.status = "ok";
-                        selectedSensor.temp = Number(
-                            (
-                                parcel.todayFieldReading.temp +
-                                (Math.random() * 4 - 1.5)
-                            ).toFixed(1),
-                        );
-                        selectedSensor.moisture = Number(
-                            (
-                                parcel.todayFieldReading.moisture +
-                                (Math.random() * 10 - 5)
-                            ).toFixed(1),
-                        );
-                        selectedSensor.lastSeen = "Dziś, teraz";
-                    } else {
-                        selectedSensor.status = "offline";
-                        selectedSensor.temp = null;
-                        selectedSensor.moisture = null;
-                        selectedSensor.lastSeen = "Offline (ignorowana)";
-                    }
-                    saveParcels();
-                    renderAll();
-                });
 
             document
                 .getElementById("btnDeleteSensor")
@@ -678,7 +657,10 @@
                         (s) => s.id !== selectedSensor.id,
                     );
                     state.selectedSensorId = null;
-                    saveParcels();
+                    saveOfflineSensorsForField(
+                        parcel.fieldId,
+                        parcel.sensors.filter((s) => s.status === "offline"),
+                    );
                     renderAll();
                 });
         }
@@ -716,8 +698,9 @@
         if (jsonPreview) {
             jsonPreview.textContent = JSON.stringify(
                 {
-                    parcelId: parcel.terytId,
+                    fieldId: parcel.fieldId,
                     name: parcel.name,
+                    points: parcel.rawPoints,
                     todayFieldReading: parcel.todayFieldReading,
                     calculationMode: summary.mode,
                     effectiveParcelValue: Number(summary.value.toFixed(2)),
@@ -732,7 +715,6 @@
         }
     }
 
-    /* --- WIDOK I GEOMETRIA --- */
     function applyViewportTransform() {
         const layer = document.getElementById("viewportLayer");
         if (!layer) return;
@@ -760,7 +742,7 @@
         const fieldW = Math.max(maxX - minX, 10);
         const fieldH = Math.max(maxY - minY, 10);
 
-        const padding = 90;
+        const padding = 95;
         const scaleX = (svgW - padding * 2) / fieldW;
         const scaleY = (svgH - padding * 2) / fieldH;
         const scale = Math.max(0.35, Math.min(scaleX, scaleY, 4.5));
@@ -777,11 +759,9 @@
     function screenToWorld(clientX, clientY) {
         const svg = document.getElementById("fieldSvg");
         const rect = svg.getBoundingClientRect();
-        const sx = clientX - rect.left;
-        const sy = clientY - rect.top;
         return {
-            x: (sx - state.view.offsetX) / state.view.scale,
-            y: (sy - state.view.offsetY) / state.view.scale,
+            x: (clientX - rect.left - state.view.offsetX) / state.view.scale,
+            y: (clientY - rect.top - state.view.offsetY) / state.view.scale,
         };
     }
 
@@ -807,9 +787,11 @@
         select.innerHTML = "";
         state.parcels.forEach((p) => {
             const opt = document.createElement("option");
-            opt.value = p.id;
-            opt.textContent = p.name;
-            if (p.id === state.selectedParcelId) opt.selected = true;
+            opt.value = p.fieldId;
+            opt.textContent = `${p.name} (#${p.fieldId})`;
+            if (String(p.fieldId) === String(state.selectedFieldId)) {
+                opt.selected = true;
+            }
             select.appendChild(opt);
         });
     }
@@ -838,17 +820,20 @@
         renderSidebar(parcel);
     }
 
-    /* --- ZDARZENIA INTERFEJSU --- */
     function bindEvents() {
-        const fieldSelect = document.getElementById("fieldSelect");
-        fieldSelect?.addEventListener("change", (e) => {
-            state.selectedParcelId = e.target.value;
-            state.selectedSensorId = null;
-            state.probePoint = null;
-            setAddSensorMode(false);
-            fitViewToParcel();
-            renderAll();
-        });
+        document
+            .getElementById("fieldSelect")
+            ?.addEventListener("change", (e) => {
+                state.selectedFieldId = e.target.value;
+                state.selectedSensorId = null;
+                state.probePoint = null;
+                setAddSensorMode(false);
+                const nextUrl = new URL(window.location.href);
+                nextUrl.searchParams.set("id", state.selectedFieldId);
+                window.history.replaceState({}, "", nextUrl);
+                fitViewToParcel();
+                renderAll();
+            });
 
         document
             .getElementById("metricSelect")
@@ -867,7 +852,7 @@
             .getElementById("btnSimulate")
             ?.addEventListener("click", () => {
                 const parcel = getCurrentParcel();
-                const active = getActiveSensors(parcel, "temp");
+                const active = getActiveSensors(parcel, state.metric);
                 if (active.length === 0) {
                     parcel.todayFieldReading.temp = Number(
                         (
@@ -883,36 +868,27 @@
                     );
                 } else {
                     active.forEach((s) => {
-                        s.temp = Number(
-                            (s.temp + (Math.random() * 1.8 - 0.9)).toFixed(1),
-                        );
-                        s.moisture = Number(
-                            Math.max(
-                                8,
-                                Math.min(
-                                    58,
-                                    s.moisture + (Math.random() * 3.2 - 1.6),
+                        if (typeof s.temp === "number") {
+                            s.temp = Number(
+                                (s.temp + (Math.random() * 1.8 - 0.9)).toFixed(
+                                    1,
                                 ),
-                            ).toFixed(1),
-                        );
-                        s.lastSeen = "Dziś, przed chwilą";
+                            );
+                        }
+                        if (typeof s.moisture === "number") {
+                            s.moisture = Number(
+                                Math.max(
+                                    8,
+                                    Math.min(
+                                        68,
+                                        s.moisture +
+                                            (Math.random() * 3.2 - 1.6),
+                                    ),
+                                ).toFixed(1),
+                            );
+                        }
                     });
                 }
-                saveParcels();
-                renderAll();
-            });
-
-        document
-            .getElementById("btnResetTemplates")
-            ?.addEventListener("click", () => {
-                state.parcels = createTemplateParcels();
-                state.selectedParcelId = state.parcels[0].id;
-                state.selectedSensorId = null;
-                state.probePoint = null;
-                setAddSensorMode(false);
-                saveParcels();
-                populateParcelSelector();
-                fitViewToParcel();
                 renderAll();
             });
 
@@ -957,9 +933,7 @@
             if (state.view.isPanning) {
                 const dx = e.clientX - state.view.panStartX;
                 const dy = e.clientY - state.view.panStartY;
-                if (Math.hypot(dx, dy) > 4) {
-                    state.view.movedDuringDrag = true;
-                }
+                if (Math.hypot(dx, dy) > 4) state.view.movedDuringDrag = true;
                 state.view.offsetX += dx;
                 state.view.offsetY += dy;
                 state.view.panStartX = e.clientX;
@@ -1011,6 +985,8 @@
             if (state.view.movedDuringDrag) return;
 
             const parcel = getCurrentParcel();
+            if (!parcel) return;
+
             const pt = screenToWorld(e.clientX, e.clientY);
             const inside = isPointInPolygon(pt, parcel.corners);
 
@@ -1024,21 +1000,27 @@
                     return;
                 }
 
-                const nextNum = (parcel.sensors?.length || 0) + 1;
+                const offlineCount = parcel.sensors.filter(
+                    (s) => s.status === "offline",
+                ).length;
                 const newSensor = {
-                    id: `CZ-${100 + nextNum}`,
-                    name: `Czujka #${nextNum} (nowa)`,
+                    id: `OFF-${offlineCount + 1}`,
+                    name: `Czujka Offline #${offlineCount + 1}`,
                     x: Number(pt.x.toFixed(1)),
                     y: Number(pt.y.toFixed(1)),
                     status: "offline",
                     temp: null,
                     moisture: null,
+                    source: "local_offline",
                     lastSeen: "Offline (ignorowana)",
                 };
 
                 parcel.sensors.push(newSensor);
                 state.selectedSensorId = newSensor.id;
-                saveParcels();
+                saveOfflineSensorsForField(
+                    parcel.fieldId,
+                    parcel.sensors.filter((s) => s.status === "offline"),
+                );
                 setAddSensorMode(false);
                 renderAll();
                 return;
@@ -1054,9 +1036,32 @@
         });
     }
 
-    function init() {
-        populateParcelSelector();
+    async function init() {
         bindEvents();
+
+        const [rawFields, rawSensors] = await Promise.all([
+            fetchJsonSafe("/field"),
+            fetchJsonSafe("/sensor"),
+        ]);
+
+        state.parcels = hydrateParcels(rawFields, rawSensors);
+
+        if (state.parcels.length === 0) {
+            window.location.replace("panel.html");
+            return;
+        }
+
+        const params = new URLSearchParams(window.location.search);
+        const requestedId = params.get("id");
+        const found = state.parcels.find(
+            (p) => String(p.fieldId) === String(requestedId),
+        );
+
+        state.selectedFieldId = found
+            ? found.fieldId
+            : state.parcels[0].fieldId;
+
+        populateParcelSelector();
         fitViewToParcel();
         renderAll();
     }
