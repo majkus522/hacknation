@@ -9,19 +9,14 @@
         <link rel="stylesheet" href="./styles/auth.css" />
         <script src="./scripts/auth.js"></script>
         <script>
-            /* Awaryjna weryfikacja ciasteczka przed wyrenderowaniem treści */
-            (function () {
-                const match = document.cookie
-                    .split("; ")
-                    .find((row) => row.startsWith("perun_session="));
-                if (!match) {
-                    document.documentElement.style.visibility = "hidden";
-                    window.location.replace("login.html?redirect=index.html");
-                }
-            })();
+            /* Jeśli użytkownik ma aktywną sesję w ciasteczku, od razu przenieś do panelu */
+            if (window.PerunAuth && window.PerunAuth.isAuthenticated()) {
+                document.documentElement.style.visibility = "hidden";
+                window.location.replace("panel.html");
+            }
         </script>
     </head>
-    <body data-require-auth="true">
+    <body data-guest-only="true">
         <!-- NAWIGACJA -->
         <header class="navbar">
             <div class="navbar-container">
@@ -37,7 +32,7 @@
                     />
                 </a>
 
-                <nav class="nav-actions" data-auth-nav>
+                <nav class="nav-actions">
                     <a href="wyszukiwarka.html" class="nav-link">
                         Wyszukiwarka działek
                     </a>
@@ -95,7 +90,7 @@
                         </p>
 
                         <!-- GŁÓWNE PRZYCISKI PRZEJŚCIA -->
-                        <div class="hero-cta-group" id="heroAuthCta">
+                        <div class="hero-cta-group">
                             <a
                                 href="wyszukiwarka.html"
                                 class="btn btn-primary btn-lg"
@@ -125,7 +120,6 @@
                             <a
                                 href="login.html"
                                 class="btn btn-outline-light btn-lg"
-                                data-guest-cta
                             >
                                 <svg
                                     width="20"
@@ -152,7 +146,6 @@
                             <a
                                 href="register.html"
                                 class="btn btn-outline-light btn-lg"
-                                data-guest-cta
                             >
                                 <svg
                                     width="20"
@@ -290,12 +283,12 @@
                             </div>
                             <h2>Panel gospodarstwa</h2>
                             <p>
-                                Zapisuj swoje działki, prowadź ewidencję
-                                zabiegów agrotechnicznych i monitoruj stan upraw
-                                w jednym miejscu.
+                                Zaloguj się, aby zapisywać swoje działki,
+                                prowadzić ewidencję zabiegów agrotechnicznych i
+                                monitorować stan upraw.
                             </p>
-                            <a href="panel.html" class="card-link"
-                                >Przejdź do panelu &rarr;</a
+                            <a href="login.html" class="card-link"
+                                >Zaloguj się do konta &rarr;</a
                             >
                         </article>
 
@@ -321,12 +314,12 @@
                             </div>
                             <h2>Analiza i historia plonów</h2>
                             <p>
-                                Przejrzyste zestawienia powierzchni, płodozmianu
-                                i wyników zbiorów wspierające trafne decyzje w
+                                Załóż konto w Perunie, aby prowadzić zestawienia
+                                powierzchni, płodozmianu i wyników zbiorów w
                                 każdym sezonie.
                             </p>
                             <a href="register.html" class="card-link"
-                                >Rejestracja nowego konta &rarr;</a
+                                >Załóż konto w Perunie &rarr;</a
                             >
                         </article>
                     </div>
@@ -397,33 +390,15 @@
 
                 startAutoPlay();
 
-                /* --- DOPASOWANIE PRZYCISKÓW HERO DLA ZALOGOWANEJ SESJI --- */
-                function syncHeroSessionState() {
+                /* Przekierowanie do panelu, jeśli użytkownik zalogował się w innej karcie */
+                window.addEventListener("focus", () => {
                     if (
-                        !window.PerunAuth ||
-                        !window.PerunAuth.isAuthenticated()
+                        window.PerunAuth &&
+                        window.PerunAuth.isAuthenticated()
                     ) {
-                        return;
+                        window.location.replace("panel.html");
                     }
-
-                    const ctaGroup = document.getElementById("heroAuthCta");
-                    if (!ctaGroup) return;
-
-                    ctaGroup
-                        .querySelectorAll("[data-guest-cta]")
-                        .forEach((el) => el.remove());
-
-                    const panelLink = document.createElement("a");
-                    panelLink.href = "panel.html";
-                    panelLink.className = "btn btn-outline-light btn-lg";
-                    panelLink.textContent = "Przejdź do panelu gospodarstwa";
-                    ctaGroup.appendChild(panelLink);
-                }
-
-                document.addEventListener(
-                    "DOMContentLoaded",
-                    syncHeroSessionState,
-                );
+                });
             })();
         </script>
     </body>
