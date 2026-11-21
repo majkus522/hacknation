@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="pl">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Perun – Panel gospodarstwa</title>
+        <link rel="stylesheet" href="./styles/main.css" />
+        <link rel="stylesheet" href="./styles/landing.css" />
+        <link rel="stylesheet" href="./styles/auth.css" />
+        <script src="./scripts/auth.js"></script>
+    </head>
+    <body data-require-auth="true">
+        <header class="navbar">
+            <div class="navbar-container">
+                <a
+                    href="index.html"
+                    class="brand-link"
+                    aria-label="Strona główna"
+                >
+                    <img
+                        src="./images/perun_logo_black.svg"
+                        class="logo-topbar"
+                        alt="Perun"
+                    />
+                </a>
+                <nav class="nav-actions" data-auth-nav></nav>
+            </div>
+        </header>
+
+        <main>
+            <section class="features-section">
+                <div class="section-container">
+                    <div class="feature-card" style="margin-bottom: 1.5rem">
+                        <span class="hero-badge"
+                            >Aktywna sesja użytkownika</span
+                        >
+                        <h1 style="font-size: 1.65rem; margin-bottom: 0.4rem">
+                            Witaj, <span data-user-name>Użytkowniku</span>!
+                        </h1>
+                        <p style="margin-bottom: 1rem">
+                            Gospodarstwo:
+                            <strong data-user-farm>—</strong> (<span
+                                data-user-email
+                                >—</span
+                            >)
+                        </p>
+                        <div
+                            style="display: flex; gap: 0.75rem; flex-wrap: wrap"
+                        >
+                            <a
+                                href="wyszukiwarka.html"
+                                class="btn btn-primary btn-sm"
+                            >
+                                Przejdź do wyszukiwarki działek
+                            </a>
+                            <button
+                                type="button"
+                                class="btn-logout"
+                                data-logout-btn
+                            >
+                                Wyloguj z sesji
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <div class="footer-content">
+                <span>&copy; 2026 Perun. Wszelkie prawa zastrzeżone.</span>
+                <div class="footer-links">
+                    <a href="#">Regulamin</a>
+                    <a href="#">Polityka prywatności</a>
+                    <a href="#">Kontakt</a>
+                </div>
+            </div>
+        </footer>
+    </body>
+</html>

@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="pl">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Perun – Logowanie do panelu gospodarstwa</title>
+        <link rel="stylesheet" href="./styles/main.css" />
+        <link rel="stylesheet" href="./styles/auth.css" />
+        <script src="./scripts/auth.js"></script>
+    </head>
+    <body data-guest-only="true">
+        <main>
+            <div class="auth-card">
+                <a
+                    href="index.html"
+                    class="auth-logo-link"
+                    aria-label="Powrót na stronę główną Perun"
+                >
+                    <img
+                        src="./images/perun_logo_black.svg"
+                        alt="Perun"
+                        class="logo-auth"
+                    />
+                </a>
+
+                <div class="login-header">
+                    <h1>Zaloguj się do Peruna</h1>
+                    <p>Zarządzaj swoimi działkami i uprawami</p>
+                </div>
+
+                <div id="authAlert" class="auth-alert" role="alert"></div>
+
+                <form id="loginForm" novalidate>
+                    <div class="form-group">
+                        <label for="email">Adres e-mail</label>
+                        <input
+                            type="email"
+                            id="email"
+                            name="email"
+                            placeholder="np. rolnik@perun.pl"
+                            required
+                            autocomplete="username"
+                        />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password">Hasło</label>
+                        <div class="password-wrapper">
+                            <input
+                                type="password"
+                                id="password"
+                                name="password"
+                                placeholder="••••••••"
+                                required
+                                autocomplete="current-password"
+                            />
+                            <button
+                                type="button"
+                                class="toggle-password"
+                                data-target="password"
+                                aria-label="Pokaż lub ukryj hasło"
+                            >
+                                <svg
+                                    width="20"
+                                    height="20"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <path
+                                        d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
+                                    ></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="form-options">
+                        <label class="remember-me">
+                            <input
+                                type="checkbox"
+                                id="remember"
+                                name="remember"
+                                checked
+                            />
+                            Zapamiętaj mnie
+                        </label>
+                        <a href="#" id="forgotPasswordLink"
+                            >Nie pamiętasz hasła?</a
+                        >
+                    </div>
+
+                    <button type="submit" class="btn-submit" id="submitBtn">
+                        Zaloguj się
+                    </button>
+                </form>
+
+                <div class="auth-switch">
+                    Nie masz jeszcze konta?
+                    <a href="register.html">Zarejestruj gospodarstwo</a>
+                </div>
+
+                <div class="back-home-wrap">
+                    <a href="index.html" class="back-home-link">
+                        &larr; Wróć na stronę główną
+                    </a>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <div class="footer-content">
+                <span>&copy; 2026 Perun. Wszelkie prawa zastrzeżone.</span>
+                <div class="footer-links">
+                    <a href="#">Regulamin</a>
+                    <a href="#">Polityka prywatności</a>
+                    <a href="#">Kontakt</a>
+                </div>
+            </div>
+        </footer>
+
+        <script>
+            (function () {
+                const form = document.getElementById("loginForm");
+                const alertBox = document.getElementById("authAlert");
+                const submitBtn = document.getElementById("submitBtn");
+
+                function showAlert(message, type = "error") {
+                    alertBox.textContent = message;
+                    alertBox.className = `auth-alert visible ${type}`;
+                }
+
+                // Podgląd hasła
+                document.querySelectorAll(".toggle-password").forEach((btn) => {
+                    btn.addEventListener("click", () => {
+                        const input = document.getElementById(
+                            btn.dataset.target,
+                        );
+                        input.type =
+                            input.type === "password" ? "text" : "password";
+                    });
+                });
+
+                document
+                    .getElementById("forgotPasswordLink")
+                    .addEventListener("click", (e) => {
+                        e.preventDefault();
+                        showAlert(
+                            "Konto testowe: rolnik@perun.pl / Hasło: Perun2026! (lub utwórz własne konto w rejestracji).",
+                            "success",
+                        );
+                    });
+
+                form.addEventListener("submit", async (e) => {
+                    e.preventDefault();
+                    alertBox.className = "auth-alert";
+
+                    const email = document.getElementById("email").value;
+                    const password = document.getElementById("password").value;
+                    const remember =
+                        document.getElementById("remember").checked;
+
+                    if (!email || !password) {
+                        showAlert("Uzupełnij adres e-mail oraz hasło.");
+                        return;
+                    }
+
+                    submitBtn.disabled = true;
+                    submitBtn.textContent = "Logowanie...";
+
+                    try {
+                        await window.PerunAuth.login({
+                            email,
+                            password,
+                            remember,
+                        });
+                        const params = new URLSearchParams(
+                            window.location.search,
+                        );
+                        const redirectUrl =
+                            params.get("redirect") || "panel.html";
+                        window.location.href = redirectUrl;
+                    } catch (err) {
+                        showAlert(err.message);
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = "Zaloguj się";
+                    }
+                });
+            })();
+        </script>
+    </body>
+</html>

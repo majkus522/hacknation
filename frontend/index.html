@@ -6,8 +6,22 @@
         <title>Perun – Zarządzanie gospodarstwem i wyszukiwarka działek</title>
         <link rel="stylesheet" href="./styles/main.css" />
         <link rel="stylesheet" href="./styles/landing.css" />
+        <link rel="stylesheet" href="./styles/auth.css" />
+        <script src="./scripts/auth.js"></script>
+        <script>
+            /* Awaryjna weryfikacja ciasteczka przed wyrenderowaniem treści */
+            (function () {
+                const match = document.cookie
+                    .split("; ")
+                    .find((row) => row.startsWith("perun_session="));
+                if (!match) {
+                    document.documentElement.style.visibility = "hidden";
+                    window.location.replace("login.html?redirect=index.html");
+                }
+            })();
+        </script>
     </head>
-    <body>
+    <body data-require-auth="true">
         <!-- NAWIGACJA -->
         <header class="navbar">
             <div class="navbar-container">
@@ -23,10 +37,11 @@
                     />
                 </a>
 
-                <nav class="nav-actions">
+                <nav class="nav-actions" data-auth-nav>
                     <a href="wyszukiwarka.html" class="nav-link">
                         Wyszukiwarka działek
                     </a>
+                    <a href="register.html" class="nav-link">Rejestracja</a>
                     <a href="login.html" class="btn btn-primary btn-sm">
                         Zaloguj się
                     </a>
@@ -80,7 +95,7 @@
                         </p>
 
                         <!-- GŁÓWNE PRZYCISKI PRZEJŚCIA -->
-                        <div class="hero-cta-group">
+                        <div class="hero-cta-group" id="heroAuthCta">
                             <a
                                 href="wyszukiwarka.html"
                                 class="btn btn-primary btn-lg"
@@ -110,6 +125,7 @@
                             <a
                                 href="login.html"
                                 class="btn btn-outline-light btn-lg"
+                                data-guest-cta
                             >
                                 <svg
                                     width="20"
@@ -130,11 +146,42 @@
                                     ></polyline>
                                     <line x1="15" y1="12" x2="3" y2="12"></line>
                                 </svg>
-                                Przejdź do logowania
+                                Zaloguj się
+                            </a>
+
+                            <a
+                                href="register.html"
+                                class="btn btn-outline-light btn-lg"
+                                data-guest-cta
+                            >
+                                <svg
+                                    width="20"
+                                    height="20"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2.2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <path
+                                        d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"
+                                    ></path>
+                                    <circle cx="8.5" cy="7" r="4"></circle>
+                                    <line x1="20" y1="8" x2="20" y2="14"></line>
+                                    <line
+                                        x1="23"
+                                        y1="11"
+                                        x2="17"
+                                        y2="11"
+                                    ></line>
+                                </svg>
+                                Rejestracja
                             </a>
                         </div>
 
-                        <!-- SZYBKIE WYSZUKIWANIE DZIAŁKI (opcjonalny skrót do wyszukiwarki) -->
+                        <!-- SZYBKIE WYSZUKIWANIE DZIAŁKI -->
                         <form
                             action="wyszukiwarka.html"
                             method="GET"
@@ -243,12 +290,12 @@
                             </div>
                             <h2>Panel gospodarstwa</h2>
                             <p>
-                                Zaloguj się, aby zapisywać swoje działki,
-                                prowadzić ewidencję zabiegów agrotechnicznych i
-                                monitorować stan upraw.
+                                Zapisuj swoje działki, prowadź ewidencję
+                                zabiegów agrotechnicznych i monitoruj stan upraw
+                                w jednym miejscu.
                             </p>
-                            <a href="login.html" class="card-link"
-                                >Zaloguj się do konta &rarr;</a
+                            <a href="panel.html" class="card-link"
+                                >Przejdź do panelu &rarr;</a
                             >
                         </article>
 
@@ -278,8 +325,8 @@
                                 i wyników zbiorów wspierające trafne decyzje w
                                 każdym sezonie.
                             </p>
-                            <a href="login.html" class="card-link"
-                                >Sprawdź możliwości &rarr;</a
+                            <a href="register.html" class="card-link"
+                                >Rejestracja nowego konta &rarr;</a
                             >
                         </article>
                     </div>
@@ -287,13 +334,10 @@
             </section>
         </main>
 
-        <!-- STOPKA SPÓJNA Z EKRANEM LOGOWANIA -->
+        <!-- STOPKA -->
         <footer>
             <div class="footer-content">
-                <span
-                    >&copy; 2026 Nazwa Aplikacji. Wszelkie prawa
-                    zastrzeżone.</span
-                >
+                <span>&copy; 2026 Perun. Wszelkie prawa zastrzeżone.</span>
                 <div class="footer-links">
                     <a href="#">Regulamin</a>
                     <a href="#">Polityka prywatności</a>
@@ -304,6 +348,7 @@
 
         <script>
             (function () {
+                /* --- OBSŁUGA KARUZELI --- */
                 const slides = document.querySelectorAll(
                     "#heroCarousel .carousel-slide",
                 );
@@ -351,6 +396,34 @@
                 });
 
                 startAutoPlay();
+
+                /* --- DOPASOWANIE PRZYCISKÓW HERO DLA ZALOGOWANEJ SESJI --- */
+                function syncHeroSessionState() {
+                    if (
+                        !window.PerunAuth ||
+                        !window.PerunAuth.isAuthenticated()
+                    ) {
+                        return;
+                    }
+
+                    const ctaGroup = document.getElementById("heroAuthCta");
+                    if (!ctaGroup) return;
+
+                    ctaGroup
+                        .querySelectorAll("[data-guest-cta]")
+                        .forEach((el) => el.remove());
+
+                    const panelLink = document.createElement("a");
+                    panelLink.href = "panel.html";
+                    panelLink.className = "btn btn-outline-light btn-lg";
+                    panelLink.textContent = "Przejdź do panelu gospodarstwa";
+                    ctaGroup.appendChild(panelLink);
+                }
+
+                document.addEventListener(
+                    "DOMContentLoaded",
+                    syncHeroSessionState,
+                );
             })();
         </script>
     </body>
