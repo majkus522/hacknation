@@ -1,0 +1,16 @@
+services:
+    postgres_db:
+        image: postgres:15
+        container_name: etoile_database
+        restart: always
+        environment:
+            POSTGRES_USER: etoile_admin
+            POSTGRES_PASSWORD: supertajnehaslo123
+            POSTGRES_DB: etoile_db
+        ports:
+            - "5400:5432"
+        volumes:
+            - pgdata:/var/lib/postgresql/data
+            - ./sql/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql
+volumes:
+    pgdata:
