@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="pl">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Perun – Zarządzanie gospodarstwem i wyszukiwarka działek</title>
+        <link rel="stylesheet" href="./styles/main.css" />
+        <link rel="stylesheet" href="./styles/landing.css" />
+    </head>
+    <body>
+        <!-- NAWIGACJA -->
+        <header class="navbar">
+            <div class="navbar-container">
+                <a
+                    href="index.html"
+                    class="brand-link"
+                    aria-label="Strona główna"
+                >
+                    <img
+                        src="./images/perun_logo_black.svg"
+                        class="logo-topbar"
+                        alt="Perun"
+                    />
+                </a>
+
+                <nav class="nav-actions">
+                    <a href="wyszukiwarka.html" class="nav-link">
+                        Wyszukiwarka działek
+                    </a>
+                    <a href="login.html" class="btn btn-primary btn-sm">
+                        Zaloguj się
+                    </a>
+                </nav>
+            </div>
+        </header>
+
+        <main>
+            <!-- HERO Z KARUZELĄ W TLE -->
+            <section class="hero" aria-label="Prezentacja aplikacji">
+                <div class="carousel-bg" id="heroCarousel">
+                    <div class="carousel-slide active">
+                        <img
+                            src="./images/landingPageCarusel/mainCarusel1.jpg"
+                            alt="Dłoń gładząca kłosy pszenicy o złotej godzinie"
+                        />
+                    </div>
+                    <div class="carousel-slide">
+                        <img
+                            src="./images/landingPageCarusel/mainCarusel2.jpg"
+                            alt="Rolnik spoglądający z uśmiechem na pole w czasie mżawki"
+                        />
+                    </div>
+                    <div class="carousel-slide">
+                        <img
+                            src="./images/landingPageCarusel/mainCarusel3.jpg"
+                            alt="Zdrowo rosnące zielone pole uprawne"
+                        />
+                    </div>
+                    <div class="carousel-slide">
+                        <img
+                            src="./images/landingPageCarusel/mainCarusel4.jpg"
+                            alt="Kombajn zbożowy podczas zbiorów"
+                        />
+                    </div>
+                </div>
+
+                <!-- Przyciemnienie zapewniające czytelność tekstu -->
+                <div class="hero-overlay"></div>
+
+                <div class="hero-container">
+                    <div class="hero-content">
+                        <span class="hero-badge"
+                            >Nowoczesne rolnictwo i ewidencja gruntów</span
+                        >
+                        <h1>Twoje pola i działki w jednym miejscu</h1>
+                        <p class="hero-subtitle">
+                            Wyszukuj działki ewidencyjne na mapie, analizuj
+                            strukturę gruntów oraz zarządzaj uprawami w
+                            przejrzystym panelu gospodarstwa.
+                        </p>
+
+                        <!-- GŁÓWNE PRZYCISKI PRZEJŚCIA -->
+                        <div class="hero-cta-group">
+                            <a
+                                href="wyszukiwarka.html"
+                                class="btn btn-primary btn-lg"
+                            >
+                                <svg
+                                    width="20"
+                                    height="20"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2.2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <line
+                                        x1="21"
+                                        y1="21"
+                                        x2="16.65"
+                                        y2="16.65"
+                                    ></line>
+                                </svg>
+                                Wyszukiwarka działek
+                            </a>
+
+                            <a
+                                href="login.html"
+                                class="btn btn-outline-light btn-lg"
+                            >
+                                <svg
+                                    width="20"
+                                    height="20"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2.2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <path
+                                        d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"
+                                    ></path>
+                                    <polyline
+                                        points="10 17 15 12 10 7"
+                                    ></polyline>
+                                    <line x1="15" y1="12" x2="3" y2="12"></line>
+                                </svg>
+                                Przejdź do logowania
+                            </a>
+                        </div>
+
+                        <!-- SZYBKIE WYSZUKIWANIE DZIAŁKI (opcjonalny skrót do wyszukiwarki) -->
+                        <form
+                            action="wyszukiwarka.html"
+                            method="GET"
+                            class="quick-search-card"
+                        >
+                            <label for="parcel-query" class="sr-only">
+                                Numer lub identyfikator działki
+                            </label>
+                            <input
+                                type="text"
+                                id="parcel-query"
+                                name="q"
+                                placeholder="Wpisz numer działki lub obręb, np. 141201_1.0001.123/4..."
+                            />
+                            <button type="submit" class="btn btn-primary">
+                                Szukaj na mapie
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- KONTROLKI KARUZELI -->
+                    <div class="carousel-controls">
+                        <span class="carousel-caption" id="carouselCaption">
+                            Precyzyjne planowanie i opieka nad uprawami
+                        </span>
+                        <div
+                            class="carousel-dots"
+                            role="tablist"
+                            aria-label="Wybór slajdu"
+                        >
+                            <button
+                                type="button"
+                                class="dot active"
+                                data-slide="0"
+                                aria-label="Slajd 1"
+                            ></button>
+                            <button
+                                type="button"
+                                class="dot"
+                                data-slide="1"
+                                aria-label="Slajd 2"
+                            ></button>
+                            <button
+                                type="button"
+                                class="dot"
+                                data-slide="2"
+                                aria-label="Slajd 3"
+                            ></button>
+                            <button
+                                type="button"
+                                class="dot"
+                                data-slide="3"
+                                aria-label="Slajd 4"
+                            ></button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SEKCJA MODUŁÓW APLIKACJI -->
+            <section class="features-section">
+                <div class="section-container">
+                    <div class="features-grid">
+                        <article class="feature-card">
+                            <div class="feature-icon">
+                                <svg
+                                    width="24"
+                                    height="24"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <polygon
+                                        points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"
+                                    ></polygon>
+                                    <line x1="8" y1="2" x2="8" y2="18"></line>
+                                    <line x1="16" y1="6" x2="16" y2="22"></line>
+                                </svg>
+                            </div>
+                            <h2>Wyszukiwarka działek</h2>
+                            <p>
+                                Szybka lokalizacja działek ewidencyjnych po
+                                identyfikatorze TERYT, numerze lub wskazaniu
+                                bezpośrednio na interaktywnej mapie.
+                            </p>
+                            <a href="wyszukiwarka.html" class="card-link"
+                                >Otwórz wyszukiwarkę &rarr;</a
+                            >
+                        </article>
+
+                        <article class="feature-card">
+                            <div class="feature-icon">
+                                <svg
+                                    width="24"
+                                    height="24"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <path
+                                        d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"
+                                    ></path>
+                                </svg>
+                            </div>
+                            <h2>Panel gospodarstwa</h2>
+                            <p>
+                                Zaloguj się, aby zapisywać swoje działki,
+                                prowadzić ewidencję zabiegów agrotechnicznych i
+                                monitorować stan upraw.
+                            </p>
+                            <a href="login.html" class="card-link"
+                                >Zaloguj się do konta &rarr;</a
+                            >
+                        </article>
+
+                        <article class="feature-card">
+                            <div class="feature-icon">
+                                <svg
+                                    width="24"
+                                    height="24"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <line
+                                        x1="18"
+                                        y1="20"
+                                        x2="18"
+                                        y2="10"
+                                    ></line>
+                                    <line x1="12" y1="20" x2="12" y2="4"></line>
+                                    <line x1="6" y1="20" x2="6" y2="14"></line>
+                                </svg>
+                            </div>
+                            <h2>Analiza i historia plonów</h2>
+                            <p>
+                                Przejrzyste zestawienia powierzchni, płodozmianu
+                                i wyników zbiorów wspierające trafne decyzje w
+                                każdym sezonie.
+                            </p>
+                            <a href="login.html" class="card-link"
+                                >Sprawdź możliwości &rarr;</a
+                            >
+                        </article>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- STOPKA SPÓJNA Z EKRANEM LOGOWANIA -->
+        <footer>
+            <div class="footer-content">
+                <span
+                    >&copy; 2026 Nazwa Aplikacji. Wszelkie prawa
+                    zastrzeżone.</span
+                >
+                <div class="footer-links">
+                    <a href="#">Regulamin</a>
+                    <a href="#">Polityka prywatności</a>
+                    <a href="#">Kontakt</a>
+                </div>
+            </div>
+        </footer>
+
+        <script>
+            (function () {
+                const slides = document.querySelectorAll(
+                    "#heroCarousel .carousel-slide",
+                );
+                const dots = document.querySelectorAll(".carousel-dots .dot");
+                const captionEl = document.getElementById("carouselCaption");
+
+                const captions = [
+                    "Precyzyjne planowanie i opieka nad uprawami",
+                    "Pewne decyzje w każdych warunkach pogodowych",
+                    "Stały podgląd kondycji i granic Twoich działek",
+                    "Efektywna organizacja prac polowych i zbiorów",
+                ];
+
+                let current = 0;
+                let timer = null;
+
+                function goToSlide(index) {
+                    slides[current].classList.remove("active");
+                    dots[current].classList.remove("active");
+
+                    current = (index + slides.length) % slides.length;
+
+                    slides[current].classList.add("active");
+                    dots[current].classList.add("active");
+                    if (captionEl) {
+                        captionEl.textContent = captions[current];
+                    }
+                }
+
+                function startAutoPlay() {
+                    stopAutoPlay();
+                    timer = setInterval(() => goToSlide(current + 1), 6000);
+                }
+
+                function stopAutoPlay() {
+                    if (timer) clearInterval(timer);
+                }
+
+                dots.forEach((dot) => {
+                    dot.addEventListener("click", () => {
+                        const target = Number(dot.dataset.slide);
+                        goToSlide(target);
+                        startAutoPlay();
+                    });
+                });
+
+                startAutoPlay();
+            })();
+        </script>
+    </body>
+</html>
