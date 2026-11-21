@@ -18,7 +18,7 @@ def get_historical_weather_data(latitude, longitude, start_date, end_date):
         "longitude": longitude,
         "start_date": start_date,
         "end_date": end_date,
-        "daily": "Rain Sum",
+        "daily": "rain_sum",
     }
 
     responses = openmeteo.weather_api(url, params = params)
@@ -44,6 +44,7 @@ def get_historical_weather_data(latitude, longitude, start_date, end_date):
 
     daily_dataframe = pd.DataFrame(data = daily_data)
     print("\nDaily data\n", daily_dataframe)
+    return daily_dataframe.to_dict(orient="records")
 
 def get_forecast_weather_data(latitude, longitude):
     """
@@ -80,3 +81,4 @@ def get_forecast_weather_data(latitude, longitude):
 
     hourly_dataframe = pd.DataFrame(data = hourly_data)
     print("\nHourly data\n", hourly_dataframe)
+    return hourly_dataframe.to_dict(orient="records")
