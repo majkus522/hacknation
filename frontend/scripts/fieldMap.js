@@ -369,7 +369,7 @@
         const data = imgData.data;
 
         for (let py = 0; py < gridH; py++) {
-            const wy = minY + ((py + 0.5) / gridH) * height;
+            const wy = maxY - ((py + 0.5) / gridH) * height;
             for (let px = 0; px < gridW; px++) {
                 const wx = minX + ((px + 0.5) / gridW) * width;
                 const val = evaluateValueAt(parcel, wx, wy, state.metric);
@@ -384,7 +384,7 @@
 
         ctx.putImageData(imgData, 0, 0);
         heatmapImage.setAttribute("x", minX);
-        heatmapImage.setAttribute("y", minY);
+        heatmapImage.setAttribute("y", -maxY);
         heatmapImage.setAttribute("width", width);
         heatmapImage.setAttribute("height", height);
         heatmapImage.setAttribute("href", canvas.toDataURL("image/png"));
@@ -397,7 +397,7 @@
     }
 
     function renderFieldAndCorners(parcel) {
-        const ptsStr = parcel.corners.map((c) => `${c.x},${c.y}`).join(" ");
+        const ptsStr = parcel.corners.map((c) => `${c.x},${-c.y}`).join(" ");
         document
             .getElementById("fieldClipPolygon")
             ?.setAttribute("points", ptsStr);
@@ -424,7 +424,7 @@
             g.appendChild(
                 createSvgEl("circle", {
                     cx: c.x,
-                    cy: c.y,
+                    cy: -c.y,
                     r: "3.5",
                     fill: "#ffffff",
                     stroke: "#1f6b24",
@@ -433,7 +433,7 @@
             );
             const label = createSvgEl("text", {
                 x: c.x + 6,
-                y: c.y - 6,
+                y: -c.y - 6,
                 fill: "#334155",
                 "font-size": "9",
                 "font-weight": "600",
@@ -473,7 +473,7 @@
                 createSvgEl("circle", {
                     class: "sensor-halo",
                     cx: sensor.x,
-                    cy: sensor.y,
+                    cy: -sensor.y,
                     r: "12",
                     fill: color,
                     "fill-opacity":
@@ -485,7 +485,7 @@
                 createSvgEl("circle", {
                     class: "sensor-ring",
                     cx: sensor.x,
-                    cy: sensor.y,
+                    cy: -sensor.y,
                     r: "5.5",
                     fill: color,
                     stroke: "#ffffff",
@@ -495,7 +495,7 @@
 
             const tag = createSvgEl("text", {
                 x: sensor.x + 9,
-                y: sensor.y + 3,
+                y: -sensor.y + 3,
                 fill: effectiveStatus === "offline" ? "#475569" : "#181818",
                 "font-size": "9.5",
                 "font-weight": "700",
@@ -530,7 +530,7 @@
         probeLayer.appendChild(
             createSvgEl("circle", {
                 cx: x,
-                cy: y,
+                cy: -y,
                 r: "6",
                 fill: "none",
                 stroke: "#181818",
@@ -541,7 +541,7 @@
         probeLayer.appendChild(
             createSvgEl("circle", {
                 cx: x,
-                cy: y,
+                cy: -y,
                 r: "2",
                 fill: "#181818",
             }),
@@ -748,7 +748,7 @@
         const scale = Math.max(0.35, Math.min(scaleX, scaleY, 4.5));
 
         const centerX = (minX + maxX) / 2;
-        const centerY = (minY + maxY) / 2;
+        const centerY = -((minY + maxY) / 2);
 
         state.view.scale = scale;
         state.view.offsetX = svgW / 2 - centerX * scale;
@@ -761,7 +761,7 @@
         const rect = svg.getBoundingClientRect();
         return {
             x: (clientX - rect.left - state.view.offsetX) / state.view.scale,
-            y: (clientY - rect.top - state.view.offsetY) / state.view.scale,
+            y: -((clientY - rect.top - state.view.offsetY) / state.view.scale),
         };
     }
 
