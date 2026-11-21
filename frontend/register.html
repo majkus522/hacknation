@@ -32,27 +32,14 @@
 
                 <form id="registerForm" novalidate>
                     <div class="form-group">
-                        <label for="fullName">Imię i nazwisko</label>
+                        <label for="userName">Imię i nazwisko</label>
                         <input
                             type="text"
-                            id="fullName"
-                            name="fullName"
+                            id="userName"
+                            name="userName"
                             placeholder="np. Jan Kowalski"
                             required
                             autocomplete="name"
-                        />
-                    </div>
-
-                    <div class="form-group">
-                        <label for="farmName"
-                            >Nazwa gospodarstwa (opcjonalnie)</label
-                        >
-                        <input
-                            type="text"
-                            id="farmName"
-                            name="farmName"
-                            placeholder="np. Gospodarstwo Rolne Zielone Pola"
-                            autocomplete="organization"
                         />
                     </div>
 
@@ -203,8 +190,7 @@
                     e.preventDefault();
                     alertBox.className = "auth-alert";
 
-                    const fullName = document.getElementById("fullName").value;
-                    const farmName = document.getElementById("farmName").value;
+                    const userName = document.getElementById("userName").value;
                     const email = document.getElementById("email").value;
                     const password = document.getElementById("password").value;
                     const confirmPassword =
@@ -212,7 +198,7 @@
                     const acceptTerms =
                         document.getElementById("acceptTerms").checked;
 
-                    if (fullName.trim().length < 2) {
+                    if (userName.trim().length < 2) {
                         showAlert("Podaj swoje imię i nazwisko.");
                         return;
                     }
@@ -238,8 +224,7 @@
 
                     try {
                         await window.PerunAuth.register({
-                            fullName,
-                            farmName,
+                            userName,
                             email,
                             password,
                         });
