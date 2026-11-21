@@ -3,19 +3,20 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Perun – Panel gospodarstwa</title>
+        <title>Perun – Panel gospodarstwa i mapa działek</title>
         <link rel="stylesheet" href="./styles/main.css" />
-        <link rel="stylesheet" href="./styles/landing.css" />
         <link rel="stylesheet" href="./styles/auth.css" />
+        <link rel="stylesheet" href="./styles/fieldMap.css" />
         <script src="./scripts/auth.js"></script>
+        <script src="./scripts/fieldMap.js" defer></script>
     </head>
     <body data-require-auth="true">
-        <header class="navbar">
-            <div class="navbar-container">
+        <header class="topbar">
+            <div class="topbar-left">
                 <a
-                    href="index.html"
+                    href="panel.html"
                     class="brand-link"
-                    aria-label="Strona główna"
+                    aria-label="Panel gospodarstwa Perun"
                 >
                     <img
                         src="./images/perun_logo_black.svg"
@@ -23,47 +24,225 @@
                         alt="Perun"
                     />
                 </a>
-                <nav class="nav-actions" data-auth-nav></nav>
+                <div class="topbar-divider"></div>
+                <div class="field-selector-group">
+                    <label for="fieldSelect">Działka:</label>
+                    <select id="fieldSelect"></select>
+                </div>
+                <div class="field-selector-group">
+                    <label for="metricSelect">Parametr:</label>
+                    <select id="metricSelect">
+                        <option value="temp" selected>
+                            Temperatura gleby (°C)
+                        </option>
+                        <option value="moisture">Wilgotność gleby (%)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="topbar-right">
+                <button type="button" id="btnSimulate" class="btn-action">
+                    Symuluj odczyt
+                </button>
+                <button type="button" id="btnAddSensorMode" class="btn-outline">
+                    + Dodaj czujkę
+                </button>
+                <button
+                    type="button"
+                    id="btnResetTemplates"
+                    class="btn-outline"
+                    title="Przywróć domyślne szablony działek"
+                >
+                    Resetuj szablony
+                </button>
+                <a href="wyszukiwarka.html" class="btn-outline">
+                    Wyszukiwarka działek
+                </a>
+                <span class="user-session-badge">
+                    <span class="user-session-dot"></span>
+                    <span data-user-name>Użytkownik</span>
+                </span>
+                <button type="button" class="btn-logout" data-logout-btn>
+                    Wyloguj
+                </button>
             </div>
         </header>
 
-        <main>
-            <section class="features-section">
-                <div class="section-container">
-                    <div class="feature-card" style="margin-bottom: 1.5rem">
-                        <span class="hero-badge"
-                            >Aktywna sesja użytkownika</span
+        <main class="map-workspace">
+            <!-- CENTRALNA PLANSZA SVG -->
+            <section
+                class="map-stage"
+                aria-label="Mapa pola z heatmapą i czujkami"
+            >
+                <div class="map-toolbar">
+                    <label
+                        class="toolbar-toggle"
+                        title="Pokaż lub ukryj interpolowaną heatmapę"
+                    >
+                        <input type="checkbox" id="toggleHeatmap" checked />
+                        <span>Heatmapa</span>
+                    </label>
+                    <label
+                        class="toolbar-toggle"
+                        title="Pokaż lub ukryj punkty czujek"
+                    >
+                        <input type="checkbox" id="toggleSensors" checked />
+                        <span>Czujki</span>
+                    </label>
+                    <div class="toolbar-sep"></div>
+                    <button type="button" id="btnZoomIn" title="Przybliż">
+                        +
+                    </button>
+                    <button type="button" id="btnZoomOut" title="Oddal">
+                        &minus;
+                    </button>
+                    <button type="button" id="btnFitView" title="Dopasuj widok">
+                        Dopasuj
+                    </button>
+                </div>
+
+                <div id="modeBanner" class="mode-banner hidden">
+                    Kliknij wewnątrz obrysu działki na planszy, aby postawić
+                    nową czujkę (status: Offline)
+                </div>
+
+                <svg id="fieldSvg" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <pattern
+                            id="gridPattern"
+                            width="25"
+                            height="25"
+                            patternUnits="userSpaceOnUse"
                         >
-                        <h1 style="font-size: 1.65rem; margin-bottom: 0.4rem">
-                            Witaj, <span data-user-name>Użytkowniku</span>!
-                        </h1>
-                        <p style="margin-bottom: 1rem">
-                            Gospodarstwo:
-                            <strong data-user-farm>—</strong> (<span
-                                data-user-email
-                                >—</span
-                            >)
-                        </p>
-                        <div
-                            style="display: flex; gap: 0.75rem; flex-wrap: wrap"
+                            <path
+                                d="M 25 0 L 0 0 0 25"
+                                fill="none"
+                                stroke="#e4e7de"
+                                stroke-width="0.6"
+                            />
+                        </pattern>
+                        <clipPath id="fieldClip">
+                            <polygon id="fieldClipPolygon" points="" />
+                        </clipPath>
+                    </defs>
+
+                    <g id="viewportLayer">
+                        <rect
+                            x="-10000"
+                            y="-10000"
+                            width="20000"
+                            height="20000"
+                            fill="url(#gridPattern)"
+                        />
+
+                        <!-- Warstwa heatmapy przycięta do kształtu pola -->
+                        <g id="heatmapLayer" clip-path="url(#fieldClip)">
+                            <image
+                                id="heatmapImage"
+                                href=""
+                                preserveAspectRatio="none"
+                            />
+                        </g>
+
+                        <!-- Obrys granic pola -->
+                        <g id="fieldLayer"></g>
+
+                        <!-- Narożniki pola (P1..Pn) -->
+                        <g id="cornersLayer"></g>
+
+                        <!-- Znacznik inspekcji dowolnego punktu -->
+                        <g id="probeLayer"></g>
+
+                        <!-- Warstwa czujek (kropki + stan) -->
+                        <g id="sensorsLayer"></g>
+                    </g>
+                </svg>
+
+                <div class="map-coords" id="cursorCoords">
+                    X: 0.0 m | Y: 0.0 m
+                </div>
+
+                <!-- LEGENDA HEATMAPY I STANÓW CZUJEK -->
+                <div class="map-legend">
+                    <div class="legend-group" id="heatmapLegendGroup">
+                        <span id="legendTitle" class="legend-title"
+                            >Temperatura:</span
                         >
-                            <a
-                                href="wyszukiwarka.html"
-                                class="btn btn-primary btn-sm"
-                            >
-                                Przejdź do wyszukiwarki działek
-                            </a>
-                            <button
-                                type="button"
-                                class="btn-logout"
-                                data-logout-btn
-                            >
-                                Wyloguj z sesji
-                            </button>
+                        <div class="legend-scale">
+                            <span id="legendMin">5°C</span>
+                            <div
+                                id="legendGradient"
+                                class="legend-gradient"
+                            ></div>
+                            <span id="legendMax">28°C</span>
                         </div>
+                    </div>
+                    <div class="legend-sep" id="legendSep"></div>
+                    <div class="legend-group" id="sensorsLegendGroup">
+                        <span><i class="dot dot-ok"></i> OK</span>
+                        <span><i class="dot dot-warn"></i> Ostrzeżenie</span>
+                        <span><i class="dot dot-crit"></i> Krytyczny</span>
+                        <span><i class="dot dot-offline"></i> Offline</span>
                     </div>
                 </div>
             </section>
+
+            <!-- PANEL BOCZNY -->
+            <aside class="map-sidebar">
+                <div class="sidebar-card">
+                    <h2>Parametry działki</h2>
+                    <div id="sourceModeBanner" class="source-mode-pill">
+                        Odczyt dzisiejszy z pola
+                    </div>
+                    <dl class="meta-list">
+                        <div>
+                            <dt>Nazwa / TERYT:</dt>
+                            <dd id="infoFieldName">—</dd>
+                        </div>
+                        <div>
+                            <dt>Uprawa:</dt>
+                            <dd id="infoCrop">—</dd>
+                        </div>
+                        <div>
+                            <dt>Powierzchnia:</dt>
+                            <dd id="infoArea">—</dd>
+                        </div>
+                        <div>
+                            <dt>Odczyt pola (dziś):</dt>
+                            <dd id="infoTodayField">—</dd>
+                        </div>
+                        <div>
+                            <dt>Czujki (aktywne / offline):</dt>
+                            <dd id="infoSensorsCount">—</dd>
+                        </div>
+                        <div>
+                            <dt>Wartość dla działki:</dt>
+                            <dd id="infoMetricSummary">—</dd>
+                        </div>
+                    </dl>
+                </div>
+
+                <div class="sidebar-card">
+                    <h2>Wybrana czujka</h2>
+                    <div id="sensorDetails" class="details-empty">
+                        Kliknij kropkę czujki na mapie, aby podejrzeć jej stan i
+                        odczyty.
+                    </div>
+                </div>
+
+                <div class="sidebar-card">
+                    <h2>Odczyt w punkcie (IDW)</h2>
+                    <div id="probeDetails" class="details-empty">
+                        Kliknij dowolne miejsce na polu, aby odczytać wartość
+                        dla wybranego punktu.
+                    </div>
+                </div>
+
+                <details class="sidebar-card json-card">
+                    <summary>Struktura danych (JSON)</summary>
+                    <pre id="jsonPreview" class="json-preview"></pre>
+                </details>
+            </aside>
         </main>
 
         <footer>
