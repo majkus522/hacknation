@@ -1,9 +1,6 @@
-
 import requests
 
-
 BASE_URL = "http://open-meteo:8080"
-
 
 def get_historical_weather_data(
     latitude,
@@ -21,8 +18,9 @@ def get_historical_weather_data(
 
         "daily": ",".join([
             "temperature_2m_mean",
+            "temperature_2m_min",
+            "temperature_2m_max",
             "relative_humidity_2m_mean",
-            "precipitation_sum",
             "rain_sum",
             "soil_moisture_0_to_7cm_mean",
             "soil_moisture_7_to_28cm_mean",
@@ -49,8 +47,9 @@ def get_historical_weather_data(
         results.append({
             "date": date,
             "temperature_mean": daily["temperature_2m_mean"][i],
+            "temperature_min": daily["temperature_2m_min"][i],
+            "temperature_max": daily["temperature_2m_max"][i],
             "humidity_mean": daily["relative_humidity_2m_mean"][i],
-            "precipitation_sum": daily["precipitation_sum"][i],
             "rain_sum": daily["rain_sum"][i],
             "soil_moisture_0_7cm": daily["soil_moisture_0_to_7cm_mean"][i],
             "soil_moisture_7_28cm": daily["soil_moisture_7_to_28cm_mean"][i],
