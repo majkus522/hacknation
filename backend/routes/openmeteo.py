@@ -17,14 +17,8 @@ def test_weather():
             "2023-01-04"
         )
 
-        forecast = om.get_forecast_weather_data(
-            latitude,
-            longitude
-        )
-
         return {
             "historical_weather": historical,
-            "forecast_weather": forecast
         }
 
     except requests.RequestException as e:

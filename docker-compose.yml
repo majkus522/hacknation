@@ -34,8 +34,24 @@ services:
         networks:
             main:  
                 ipv4_address: 192.168.0.4
+    
+    open-meteo:
+        image: ghcr.io/open-meteo/open-meteo
+        container_name: open-meteo
+        restart: unless-stopped
+        environment:
+            REMOTE_DATA_DIRECTORY: https://openmeteo.s3.amazonaws.com/data/
+            CACHE_SIZE: 8GB
+        ports:
+            - "127.0.0.1:8080:8080"
+        volumes:
+            - open-meteo-data:/app/data
+        networks:
+            main:
+                ipv4_address: 192.168.0.5
 volumes:
     pgdata:
+    open-meteo-data:
 networks:
     main:
         ipam:
