@@ -37,6 +37,13 @@ CREATE TABLE Sensors (
     value FLOAT NOT NULL
 );
 
+CREATE TABLE Logs (
+	logId SERIAL PRIMARY KEY,
+	userId INT REFERENCES Users(userId),
+	action VARCHAR(100) NOT NULL,
+	time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 INSERT INTO SoilTypes (name) VALUES
 ('Gleba brunatna'),
 ('Gleba płowa'),

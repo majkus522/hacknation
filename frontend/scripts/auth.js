@@ -177,7 +177,15 @@
         });
     }
 
-    function logout(redirectUrl = "index.html") {
+    async function logout(redirectUrl = "index.html") {
+        let token = getSession().token;
+        const res = await fetch(`${API_BASE_URL}/auth/logout`, {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${token}`,
+                token: token,
+            },
+        });
         clearSession();
         window.location.href = redirectUrl;
     }

@@ -1,6 +1,8 @@
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 from database import get_db
+from models.logs import Log
 from models.user import User
 from schemas.user import UserCreate, UserLogin
 import security
@@ -116,11 +118,21 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
 
     token = create_token(db_user.userid)
 
+    log = Log(userid=db_user.userid, action="login", time=datetime.utcnow())
+    db.add(log)
+    db.commit()
+
     return {
         "access_token": token,
         "token_type": "bearer",
         "user": serialize_user(db_user),
     }
+
+@router.post("/logout")
+def login(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    log = Log(userid = current_user.userid, action = "logout", time = datetime.utcnow())
+    db.add(log)
+    db.commit()
 
 
 @router.get("/me")
