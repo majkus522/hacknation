@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="pl">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Perun – Rejestracja nowego konta</title>
+        <link rel="stylesheet" href="./styles/main.css" />
+        <link rel="stylesheet" href="./styles/auth.css" />
+        <script src="./scripts/auth.js"></script>
+    </head>
+    <body data-guest-only="true">
+        <main>
+            <div class="auth-card">
+                <a
+                    href="index.html"
+                    class="auth-logo-link"
+                    aria-label="Powrót na stronę główną Perun"
+                >
+                    <img
+                        src="./images/perun_logo_black.svg"
+                        alt="Perun"
+                        class="logo-auth"
+                    />
+                </a>
+
+                <div class="login-header">
+                    <h1>Utwórz konto w Perunie</h1>
+                    <p>Zacznij ewidencjonować działki i planować uprawy</p>
+                </div>
+
+                <div id="authAlert" class="auth-alert" role="alert"></div>
+
+                <form id="registerForm" novalidate>
+                    <div class="form-group">
+                        <label for="fullName">Imię i nazwisko</label>
+                        <input
+                            type="text"
+                            id="fullName"
+                            name="fullName"
+                            placeholder="np. Jan Kowalski"
+                            required
+                            autocomplete="name"
+                        />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="farmName"
+                            >Nazwa gospodarstwa (opcjonalnie)</label
+                        >
+                        <input
+                            type="text"
+                            id="farmName"
+                            name="farmName"
+                            placeholder="np. Gospodarstwo Rolne Zielone Pola"
+                            autocomplete="organization"
+                        />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="email">Adres e-mail</label>
+                        <input
+                            type="email"
+                            id="email"
+                            name="email"
+                            placeholder="np. jan.kowalski@domena.pl"
+                            required
+                            autocomplete="email"
+                        />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password">Hasło</label>
+                        <div class="password-wrapper">
+                            <input
+                                type="password"
+                                id="password"
+                                name="password"
+                                placeholder="Minimum 8 znaków"
+                                required
+                                minlength="8"
+                                autocomplete="new-password"
+                            />
+                            <button
+                                type="button"
+                                class="toggle-password"
+                                data-target="password"
+                                aria-label="Pokaż lub ukryj hasło"
+                            >
+                                <svg
+                                    width="20"
+                                    height="20"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <path
+                                        d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
+                                    ></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                            </button>
+                        </div>
+                        <span class="field-hint"
+                            >Użyj co najmniej 8 znaków.</span
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="confirmPassword">Powtórz hasło</label>
+                        <div class="password-wrapper">
+                            <input
+                                type="password"
+                                id="confirmPassword"
+                                name="confirmPassword"
+                                placeholder="••••••••"
+                                required
+                                autocomplete="new-password"
+                            />
+                            <button
+                                type="button"
+                                class="toggle-password"
+                                data-target="confirmPassword"
+                                aria-label="Pokaż lub ukryj powtórzone hasło"
+                            >
+                                <svg
+                                    width="20"
+                                    height="20"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <path
+                                        d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
+                                    ></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <label class="terms-label">
+                        <input type="checkbox" id="acceptTerms" required />
+                        <span>
+                            Akceptuję <a href="#">Regulamin</a> oraz
+                            <a href="#">Politykę prywatności</a> aplikacji
+                            Perun.
+                        </span>
+                    </label>
+
+                    <button type="submit" class="btn-submit" id="submitBtn">
+                        Zarejestruj się
+                    </button>
+                </form>
+
+                <div class="auth-switch">
+                    Masz już konto w Perunie?
+                    <a href="login.html">Zaloguj się</a>
+                </div>
+
+                <div class="back-home-wrap">
+                    <a href="index.html" class="back-home-link">
+                        &larr; Wróć na stronę główną
+                    </a>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <div class="footer-content">
+                <span>&copy; 2026 Perun. Wszelkie prawa zastrzeżone.</span>
+                <div class="footer-links">
+                    <a href="#">Regulamin</a>
+                    <a href="#">Polityka prywatności</a>
+                    <a href="#">Kontakt</a>
+                </div>
+            </div>
+        </footer>
+
+        <script>
+            (function () {
+                const form = document.getElementById("registerForm");
+                const alertBox = document.getElementById("authAlert");
+                const submitBtn = document.getElementById("submitBtn");
+
+                function showAlert(message, type = "error") {
+                    alertBox.textContent = message;
+                    alertBox.className = `auth-alert visible ${type}`;
+                }
+
+                document.querySelectorAll(".toggle-password").forEach((btn) => {
+                    btn.addEventListener("click", () => {
+                        const input = document.getElementById(
+                            btn.dataset.target,
+                        );
+                        input.type =
+                            input.type === "password" ? "text" : "password";
+                    });
+                });
+
+                form.addEventListener("submit", async (e) => {
+                    e.preventDefault();
+                    alertBox.className = "auth-alert";
+
+                    const fullName = document.getElementById("fullName").value;
+                    const farmName = document.getElementById("farmName").value;
+                    const email = document.getElementById("email").value;
+                    const password = document.getElementById("password").value;
+                    const confirmPassword =
+                        document.getElementById("confirmPassword").value;
+                    const acceptTerms =
+                        document.getElementById("acceptTerms").checked;
+
+                    if (fullName.trim().length < 2) {
+                        showAlert("Podaj swoje imię i nazwisko.");
+                        return;
+                    }
+                    if (!email.includes("@")) {
+                        showAlert("Podaj poprawny adres e-mail.");
+                        return;
+                    }
+                    if (password.length < 8) {
+                        showAlert("Hasło musi mieć co najmniej 8 znaków.");
+                        return;
+                    }
+                    if (password !== confirmPassword) {
+                        showAlert("Podane hasła nie są identyczne.");
+                        return;
+                    }
+                    if (!acceptTerms) {
+                        showAlert("Zaakceptuj regulamin, aby utworzyć konto.");
+                        return;
+                    }
+
+                    submitBtn.disabled = true;
+                    submitBtn.textContent = "Tworzenie konta...";
+
+                    try {
+                        await window.PerunAuth.register({
+                            fullName,
+                            farmName,
+                            email,
+                            password,
+                        });
+                        window.location.href = "panel.html";
+                    } catch (err) {
+                        showAlert(err.message);
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = "Zarejestruj się";
+                    }
+                });
+            })();
+        </script>
+    </body>
+</html>

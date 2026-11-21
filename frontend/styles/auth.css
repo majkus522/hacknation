@@ -1,0 +1,207 @@
+/* --- KARTA LOGOWANIA I REJESTRACJI --- */
+.auth-card {
+    width: 100%;
+    max-width: 440px;
+    background-color: var(--bg-card);
+    border: 1px solid rgba(126, 126, 126, 0.45);
+    border-radius: var(--radius);
+    padding: 2rem;
+    box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.12);
+}
+
+.auth-logo-link {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    text-decoration: none;
+}
+
+.logo-auth {
+    height: 54px;
+    width: auto;
+    max-width: 100%;
+    object-fit: contain;
+}
+
+/* Nadpisanie koloru obwódki focus na zieleń marki Perun */
+.form-group input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(50, 167, 58, 0.18);
+}
+
+.login-header p,
+.remember-me,
+footer {
+    color: #526071;
+}
+
+/* --- POLE HASŁA Z PRZYCISKIEM PODGLĄDU --- */
+.password-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.password-wrapper input {
+    padding-right: 2.75rem;
+}
+
+.toggle-password {
+    position: absolute;
+    right: 0.65rem;
+    background: none;
+    border: none;
+    color: #64748b;
+    cursor: pointer;
+    padding: 0.25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s;
+}
+
+.toggle-password:hover {
+    color: var(--text-main);
+}
+
+.field-hint {
+    display: block;
+    margin-top: 0.3rem;
+    font-size: 0.78rem;
+    color: #64748b;
+}
+
+/* --- KOMUNIKATY BŁĘDÓW I SUKCESU --- */
+.auth-alert {
+    padding: 0.75rem 0.95rem;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    line-height: 1.45;
+    margin-bottom: 1.25rem;
+    display: none;
+}
+
+.auth-alert.visible {
+    display: block;
+}
+
+.auth-alert.error {
+    background-color: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #b91c1c;
+}
+
+.auth-alert.success {
+    background-color: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    color: #15803d;
+}
+
+/* --- AKCEPTACJA REGULAMINU --- */
+.terms-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    color: #526071;
+    margin-bottom: 1.4rem;
+    cursor: pointer;
+    line-height: 1.4;
+}
+
+.terms-label input[type="checkbox"] {
+    accent-color: var(--accent);
+    width: 16px;
+    height: 16px;
+    margin-top: 2px;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+
+.terms-label a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.terms-label a:hover {
+    text-decoration: underline;
+}
+
+/* --- PRZEŁĄCZNIK LOGOWANIE <-> REJESTRACJA --- */
+.auth-switch {
+    margin-top: 1.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid rgba(126, 126, 126, 0.25);
+    text-align: center;
+    font-size: 0.9rem;
+    color: #526071;
+}
+
+.auth-switch a {
+    color: var(--accent);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.auth-switch a:hover {
+    color: var(--accent-hover);
+    text-decoration: underline;
+}
+
+.back-home-wrap {
+    margin-top: 0.85rem;
+    text-align: center;
+}
+
+.back-home-link {
+    font-size: 0.84rem;
+    color: #64748b;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.back-home-link:hover {
+    color: var(--text-main);
+}
+
+/* --- ELEMENTY ZALOGOWANEGO UŻYTKOWNIKA W NAWIGACJI --- */
+.user-session-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.4rem 0.75rem;
+    background-color: rgba(50, 167, 58, 0.1);
+    border: 1px solid rgba(50, 167, 58, 0.3);
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.user-session-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--accent);
+}
+
+.btn-logout {
+    padding: 0.5rem 0.9rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #b91c1c;
+    background-color: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    cursor: pointer;
+    transition:
+        background-color 0.2s,
+        border-color 0.2s;
+}
+
+.btn-logout:hover {
+    background-color: #fee2e2;
+    border-color: #fca5a5;
+}
