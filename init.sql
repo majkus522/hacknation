@@ -57,26 +57,3 @@ INSERT INTO Sensors (fieldId, typeId, value) VALUES
 (1, 1, 0.4),
 (1, 2, 0.5),
 (2, 1, 0.6);
-
--- IMGW: stacje i dobowe sumy opadow (2010-2026).
--- Dla juz istniejacego wolumenu te same tabele tworzy imgw_import.sql.
-CREATE TABLE IF NOT EXISTS public.stations (
-    station_id VARCHAR(30) PRIMARY KEY,
-    station_name TEXT,
-    imgw_map_code VARCHAR(20),
-    latitude DOUBLE PRECISION,
-    longitude DOUBLE PRECISION,
-    elevation_m DOUBLE PRECISION,
-    coordinate_source TEXT
-);
-
-CREATE TABLE IF NOT EXISTS public.precipitation_daily (
-    station_id VARCHAR(30) NOT NULL REFERENCES public.stations(station_id),
-    observation_date DATE NOT NULL,
-    precipitation_mm DOUBLE PRECISION,
-    quality_code VARCHAR(20),
-    PRIMARY KEY (station_id, observation_date)
-);
-
-CREATE INDEX IF NOT EXISTS idx_precipitation_daily_date
-    ON public.precipitation_daily (observation_date);
