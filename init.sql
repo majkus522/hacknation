@@ -1,8 +1,36 @@
 CREATE TABLE Users (
-    user_id SERIAL PRIMARY KEY,
-    username VARCHAR(100) NOT NULL,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    is_designer BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    usedId SERIAL PRIMARY KEY,
+    username VARCHAR(100) NOT NULL UNIQUE,
+    email VARCHAR(255) UNIQUE NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    fieldAdmin BOOLEAN DEFAULT FALSE
+);
+
+CREATE TABLE SoilType (
+	typeId SERIAL PRIMARY KEY,
+	name VARCHAR(100) NOT NULL UNIQUE
+);
+
+CREATE TABLE Fields (
+    fieldId SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    size FLOAT NOT NULL
+);
+
+CREATE TABLE UserFields (
+	id SERIAL PRIMARY KEY,
+	userId INT REFERENCES Users(usedId),
+	fieldId INT REFERENCES Fields(fieldId)
+);
+
+CREATE TABLE SensorType (
+	typeId SERIAL PRIMARY KEY,
+	name VARCHAR(255) UNIQUE NOT NULL
+);
+
+CREATE TABLE Sensor (
+    sensorId SERIAL PRIMARY KEY,
+    fieldId INT REFERENCES Fields(fieldId),
+    typeId INT REFERENCES SensorType(typeId),
+    value FLOAT NOT NULL
 );
