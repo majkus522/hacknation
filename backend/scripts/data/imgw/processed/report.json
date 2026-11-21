@@ -1,0 +1,24 @@
+{
+  "range": [
+    2010,
+    2026
+  ],
+  "source": "IMGW dobowe/opad",
+  "coordinates_note": "Współrzędne z mapy PDF są orientacyjne, nieoficjalne jako dokładne metadane lokalizacji i mogą nie odpowiadać wszystkim zmianom położenia.",
+  "quality_note": "WSMDB 8 i 9 -> brak wartości mm (NULL), kody zachowane",
+  "stats": {
+    "records_parsed": 2374904,
+    "records_unique": 2374904,
+    "archives_scanned": 199,
+    "status_8_missing": 24576,
+    "precipitation_null": 436935,
+    "status_9_no_phenomenon": 412359,
+    "invalid_rows": 1,
+    "stations_with_approx_coordinates": 1162,
+    "stations_total": 1186,
+    "stations_without_coordinates": 24,
+    "station_register_rows": 2182,
+    "station_register_repaired_lines": 1,
+    "station_name_variants": 2
+  }
+}

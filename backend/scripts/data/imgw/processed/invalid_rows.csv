@@ -1,0 +1,2 @@
+source_archive,source_csv,line,reason,raw_preview
+data\imgw\raw\2025\2025_08_o.zip,o_d_08_2025.csv,1,Nieprawidłowy NSP: 'kansp',"['kansp', 'kapost', 'dorok', 'domc', 'dodz', 'dosmdb', 'dowsmdb', 'doroop']"
