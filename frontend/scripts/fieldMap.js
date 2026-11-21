@@ -4,12 +4,24 @@
     const SVG_NS = "http://www.w3.org/2000/svg";
     const OFFLINE_SENSORS_KEY = "perun_offline_sensors_by_field_v1";
 
-    const METRIC_META = {
+    const CLIENT_GOOGLE_WEATHER_KEY = window.PERUN_GOOGLE_WEATHER_API_KEY || "";
+
+    const OVERLAY_META = {
+        off: {
+            label: "Wyłączona",
+            shortLabel: "Brak nakładki",
+            unit: "",
+            decimals: 0,
+            hint: "",
+        },
         temp: {
             label: "Temperatura",
+            shortLabel: "Temperatura (°C)",
             unit: "°C",
-            min: 0,
-            max: 28,
+            decimals: 1,
+            min: -5,
+            max: 35,
+            hint: "Optimum: 12–24°C",
             stops: [
                 { t: 0.0, r: 37, g: 99, b: 235 },
                 { t: 0.38, r: 50, g: 167, b: 58 },
@@ -19,14 +31,62 @@
         },
         moisture: {
             label: "Wilgotność",
+            shortLabel: "Wilgotność (%)",
             unit: "%",
+            decimals: 1,
             min: 10,
-            max: 70,
+            max: 95,
+            hint: "Optimum: 45–70%",
             stops: [
                 { t: 0.0, r: 220, g: 38, b: 38 },
                 { t: 0.35, r: 234, g: 179, b: 8 },
                 { t: 0.7, r: 50, g: 167, b: 58 },
                 { t: 1.0, r: 2, g: 132, b: 199 },
+            ],
+        },
+        vpd: {
+            label: "Deficyt VPD",
+            shortLabel: "Deficyt VPD (kPa)",
+            unit: " kPa",
+            decimals: 2,
+            min: 0.0,
+            max: 2.8,
+            hint: "Optimum: 0.8–1.2 kPa",
+            stops: [
+                { t: 0.0, r: 2, g: 132, b: 199 },
+                { t: 0.35, r: 50, g: 167, b: 58 },
+                { t: 0.62, r: 234, g: 179, b: 8 },
+                { t: 1.0, r: 220, g: 38, b: 38 },
+            ],
+        },
+        et: {
+            label: "Ewapotranspiracja ET₀",
+            shortLabel: "Ewapotranspiracja (mm/d)",
+            unit: " mm/d",
+            decimals: 2,
+            min: 0.0,
+            max: 7.5,
+            hint: "Strata wody z pola",
+            stops: [
+                { t: 0.0, r: 14, g: 165, b: 233 },
+                { t: 0.33, r: 50, g: 167, b: 58 },
+                { t: 0.68, r: 234, g: 179, b: 8 },
+                { t: 1.0, r: 220, g: 38, b: 38 },
+            ],
+        },
+        irrigation: {
+            label: "Potrzeba nawadniania",
+            shortLabel: "Priorytet nawadniania (%)",
+            unit: "%",
+            decimals: 0,
+            min: 0,
+            max: 100,
+            hint: ">60% zalecane podlewanie",
+            stops: [
+                { t: 0.0, r: 50, g: 167, b: 58 },
+                { t: 0.4, r: 163, g: 230, b: 53 },
+                { t: 0.68, r: 234, g: 179, b: 8 },
+                { t: 1.0, r: 220, g: 38, b: 38 },
             ],
         },
     };
@@ -48,11 +108,10 @@
     const state = {
         parcels: [],
         selectedFieldId: null,
-        metric: "temp",
+        overlayMode: "temp",
         selectedSensorId: null,
         probePoint: null,
         addSensorMode: false,
-        showHeatmap: true,
         showSensors: true,
         view: {
             scale: 1.5,
@@ -224,18 +283,137 @@
             return {
                 fieldId,
                 name: f.name || `Działka #${fieldId}`,
-                coordX: Number(f.x ?? 0),
-                coordY: Number(f.y ?? 0),
+                coordX: Number(f.x ?? 21.4256),
+                coordY: Number(f.y ?? 50.2871),
                 rawPoints: f.points,
-                todayFieldReading: {
-                    date: new Date().toISOString().slice(0, 10),
-                    temp: 14.2,
-                    moisture: 31.0,
-                },
+                weather: null,
                 corners,
                 sensors: [...activeSensors, ...localOffline],
             };
         });
+    }
+
+    /* --- GOOGLE WEATHER API --- */
+    function parseGoogleWeatherPayload(data, lat, lon) {
+        const tempObj = data.temperature || {};
+        const feelsObj = data.feelsLikeTemperature || {};
+        const dewObj = data.dewPoint || {};
+        const precipObj = data.precipitation || {};
+        const probObj = precipObj.probability || {};
+        const qpfObj = precipObj.qpf || {};
+        const windObj = data.wind || {};
+        const windSpeedObj = windObj.speed || {};
+        const windDirObj = windObj.direction || {};
+        const pressureObj = data.airPressure || {};
+        const condObj = data.weatherCondition || {};
+
+        return {
+            source: "Google Weather API",
+            lat,
+            lon,
+            condition:
+                condObj.description?.text || condObj.type || "Warunki bieżące",
+            temperature: Number(tempObj.degrees ?? 14.0),
+            feelsLikeTemperature:
+                feelsObj.degrees != null ? Number(feelsObj.degrees) : null,
+            relativeHumidity: Number(data.relativeHumidity ?? 50),
+            dewPoint: dewObj.degrees != null ? Number(dewObj.degrees) : null,
+            precipitationProbability: probObj.percent ?? null,
+            precipitationAmount: qpfObj.quantity ?? 0,
+            windSpeed: windSpeedObj.value ?? null,
+            windDirection: windDirObj.cardinal ?? null,
+            airPressure: pressureObj.meanSeaLevelMillibars ?? null,
+            uvIndex: data.uvIndex ?? null,
+            cloudCover: data.cloudCover ?? null,
+        };
+    }
+
+    async function fetchWeatherForParcel(parcel, forceRefresh = false) {
+        if (!parcel) return null;
+        if (parcel.weather && !forceRefresh) return parcel.weather;
+
+        const lat = parcel.coordY;
+        const lon = parcel.coordX;
+
+        const hudEl = document.getElementById("hudWeatherSummary");
+        if (hudEl) {
+            hudEl.textContent = `Pobieranie (${lat.toFixed(4)}, ${lon.toFixed(4)})...`;
+        }
+
+        try {
+            const backendRes = await window.PerunAuth.authFetch(
+                `/weather/?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`,
+            );
+            if (backendRes.ok) {
+                const weatherData = await backendRes.json();
+                parcel.weather = weatherData;
+                return weatherData;
+            }
+        } catch {
+            /* fallback */
+        }
+
+        if (CLIENT_GOOGLE_WEATHER_KEY) {
+            try {
+                const gUrl = new URL(
+                    "https://weather.googleapis.com/v1/currentConditions:lookup",
+                );
+                gUrl.searchParams.set("key", CLIENT_GOOGLE_WEATHER_KEY);
+                gUrl.searchParams.set("location.latitude", String(lat));
+                gUrl.searchParams.set("location.longitude", String(lon));
+                gUrl.searchParams.set("languageCode", "pl");
+
+                const gRes = await fetch(gUrl.toString());
+                if (gRes.ok) {
+                    const parsed = parseGoogleWeatherPayload(
+                        await gRes.json(),
+                        lat,
+                        lon,
+                    );
+                    parcel.weather = parsed;
+                    return parsed;
+                }
+            } catch {
+                /* fallback */
+            }
+        }
+
+        try {
+            const omUrl = new URL("https://api.open-meteo.com/v1/forecast");
+            omUrl.searchParams.set("latitude", String(lat));
+            omUrl.searchParams.set("longitude", String(lon));
+            omUrl.searchParams.set(
+                "current",
+                "temperature_2m,relative_humidity_2m,apparent_temperature,dew_point_2m,precipitation,cloud_cover,surface_pressure,wind_speed_10m,uv_index",
+            );
+            const omRes = await fetch(omUrl.toString());
+            if (omRes.ok) {
+                const cur = (await omRes.json()).current || {};
+                const parsed = {
+                    source: "Weather API",
+                    lat,
+                    lon,
+                    condition: "Warunki bieżące",
+                    temperature: Number(cur.temperature_2m ?? 14.0),
+                    feelsLikeTemperature: cur.apparent_temperature ?? null,
+                    relativeHumidity: Number(cur.relative_humidity_2m ?? 50),
+                    dewPoint: cur.dew_point_2m ?? null,
+                    precipitationProbability: null,
+                    precipitationAmount: cur.precipitation ?? 0,
+                    windSpeed: cur.wind_speed_10m ?? null,
+                    windDirection: null,
+                    airPressure: cur.surface_pressure ?? null,
+                    uvIndex: cur.uv_index ?? null,
+                    cloudCover: cur.cloud_cover ?? null,
+                };
+                parcel.weather = parsed;
+                return parsed;
+            }
+        } catch {
+            /* ignoruj */
+        }
+
+        return null;
     }
 
     function getCurrentParcel() {
@@ -246,21 +424,35 @@
         );
     }
 
-    function getActiveSensors(parcel, metric = state.metric) {
+    function getActiveSensors(parcel, baseMetric) {
         return (parcel?.sensors || []).filter(
-            (s) => s.status !== "offline" && typeof s[metric] === "number",
+            (s) => s.status !== "offline" && typeof s[baseMetric] === "number",
         );
     }
 
-    function evaluateValueAt(parcel, x, y, metric = state.metric) {
-        const active = getActiveSensors(parcel, metric);
+    function getWeatherDefaultValue(parcel, baseMetric) {
+        const w = parcel?.weather;
+        if (!w) {
+            return baseMetric === "temp" ? 14.2 : 50.0;
+        }
+        if (baseMetric === "temp") {
+            return typeof w.temperature === "number" ? w.temperature : 14.2;
+        }
+        return typeof w.relativeHumidity === "number"
+            ? w.relativeHumidity
+            : 50.0;
+    }
+
+    /* Bazowa interpolacja IDW dla temperatury lub wilgotności */
+    function evaluateBaseScalarAt(parcel, x, y, baseMetric) {
+        const active = getActiveSensors(parcel, baseMetric);
 
         if (active.length === 0) {
-            return parcel.todayFieldReading[metric];
+            return getWeatherDefaultValue(parcel, baseMetric);
         }
 
         if (active.length === 1) {
-            return active[0][metric];
+            return active[0][baseMetric];
         }
 
         let weightedSum = 0;
@@ -269,49 +461,137 @@
         for (let i = 0; i < active.length; i++) {
             const s = active[i];
             const dist = Math.hypot(x - s.x, y - s.y);
-            if (dist < 0.001) return s[metric];
+            if (dist < 0.001) return s[baseMetric];
             const w = 1 / (dist * dist);
-            weightedSum += w * s[metric];
+            weightedSum += w * s[baseMetric];
             weightTotal += w;
         }
 
         return weightedSum / weightTotal;
     }
 
-    function computeParcelSummary(parcel, metric = state.metric) {
-        const active = getActiveSensors(parcel, metric);
+    /* Obliczenie wszystkich parametrów nawadniania w punkcie (x, y) */
+    function computePointIrrigationMetrics(parcel, x, y) {
+        const temp = evaluateBaseScalarAt(parcel, x, y, "temp");
+        const moisture = Math.max(
+            1,
+            Math.min(100, evaluateBaseScalarAt(parcel, x, y, "moisture")),
+        );
+
+        // 1. Deficyt ciśnienia pary wodnej VPD (kPa)
+        const svp = 0.61078 * Math.exp((17.27 * temp) / (temp + 237.3));
+        const vpd = Math.max(0, svp * (1 - moisture / 100));
+
+        // 2. Ewapotranspiracja odniesienia ET₀ (mm/dzień)
+        const w = parcel?.weather || {};
+        const windKmh = typeof w.windSpeed === "number" ? w.windSpeed : 8.0;
+        const radFactor =
+            typeof w.uvIndex === "number"
+                ? 0.55 + Math.min(w.uvIndex, 10) * 0.11
+                : typeof w.cloudCover === "number"
+                  ? 1.25 - (w.cloudCover / 100) * 0.55
+                  : 1.0;
+        const windFactor = 1 + (windKmh / 25) * 0.45;
+        const tempFactor = Math.max(0.1, (temp + 5) / 20);
+        const et = Math.max(
+            0,
+            (0.62 * tempFactor * radFactor + 1.8 * vpd) * windFactor,
+        );
+
+        // 3. Priorytet nawadniania (0-100%)
+        const moistureDeficit = Math.max(
+            0,
+            Math.min(100, ((65 - moisture) / 50) * 100),
+        );
+        const etDemand = Math.max(0, Math.min(100, (et / 6.5) * 100));
+        const precipMm =
+            typeof w.precipitationAmount === "number"
+                ? w.precipitationAmount
+                : 0;
+        const precipProb =
+            typeof w.precipitationProbability === "number"
+                ? w.precipitationProbability
+                : 0;
+        const rainCredit = Math.min(45, precipMm * 8 + (precipProb / 100) * 18);
+        const irrigation = Math.max(
+            0,
+            Math.min(
+                100,
+                0.58 * moistureDeficit + 0.42 * etDemand - rainCredit,
+            ),
+        );
+
+        return {
+            temp,
+            moisture,
+            vpd,
+            et,
+            irrigation,
+        };
+    }
+
+    function evaluateModeValueAt(parcel, x, y, mode = state.overlayMode) {
+        const metrics = computePointIrrigationMetrics(parcel, x, y);
+        if (mode === "off") return metrics.temp;
+        return metrics[mode] ?? metrics.temp;
+    }
+
+    function describeModeValue(mode, val) {
+        if (mode === "temp") {
+            if (val < 5) return "Chłodno (wolny wzrost)";
+            if (val <= 25) return "Optymalna temperatura";
+            return "Upał (wysokie parowanie)";
+        }
+        if (mode === "moisture") {
+            if (val < 30) return "Niska wilgotność – sucho";
+            if (val <= 70) return "Optymalna wilgotność";
+            return "Wysoka wilgotność";
+        }
+        if (mode === "vpd") {
+            if (val < 0.45) return "Niskie VPD – wolna transpiracja";
+            if (val <= 1.35) return "Optymalne VPD dla roślin";
+            return "Wysokie VPD – stres wodny";
+        }
+        if (mode === "et") {
+            if (val < 2.0) return "Niskie parowanie";
+            if (val <= 4.5) return "Umiarkowana ewapotranspiracja";
+            return "Wysoka strata wody";
+        }
+        if (mode === "irrigation") {
+            if (val < 30) return "Brak potrzeby podlewania";
+            if (val < 60) return "Umiarkowane zapotrzebowanie";
+            return "Zalecane nawadnianie";
+        }
+        return "";
+    }
+
+    function computeParcelSummary(parcel, mode = state.overlayMode) {
+        const activeTemp = getActiveSensors(parcel, "temp");
+        const activeMoisture = getActiveSensors(parcel, "moisture");
+        const anyActiveSensors =
+            activeTemp.length > 0 || activeMoisture.length > 0;
         const offlineCount = (parcel.sensors || []).filter(
             (s) => s.status === "offline",
         ).length;
 
-        if (active.length === 0) {
-            return {
-                mode: "field_today",
-                activeCount: 0,
-                offlineCount,
-                value: parcel.todayFieldReading[metric],
-                min: parcel.todayFieldReading[metric],
-                max: parcel.todayFieldReading[metric],
-            };
-        }
+        const targetMode = mode === "off" ? "temp" : mode;
+        const centroid = computeCentroid(parcel.corners);
 
-        if (active.length === 1) {
-            return {
-                mode: "single_sensor",
-                activeCount: 1,
-                offlineCount,
-                sensorName: active[0].name,
-                value: active[0][metric],
-                min: active[0][metric],
-                max: active[0][metric],
-            };
-        }
+        // Próbkujemy wierzchołki + środek + aktywne czujki
+        const samplePoints = [centroid, ...parcel.corners];
+        [...activeTemp, ...activeMoisture].forEach((s) =>
+            samplePoints.push({ x: s.x, y: s.y }),
+        );
 
-        const values = active.map((s) => s[metric]);
-        const avg = values.reduce((acc, v) => acc + v, 0) / values.length;
+        const values = samplePoints.map((pt) =>
+            evaluateModeValueAt(parcel, pt.x, pt.y, targetMode),
+        );
+        const avg = values.reduce((a, b) => a + b, 0) / values.length;
+
         return {
-            mode: "idw_interpolation",
-            activeCount: active.length,
+            hasSensors: anyActiveSensors,
+            activeTempCount: activeTemp.length,
+            activeMoistureCount: activeMoisture.length,
             offlineCount,
             value: avg,
             min: Math.min(...values),
@@ -319,8 +599,9 @@
         };
     }
 
-    function interpolateColor(value, metric = state.metric) {
-        const meta = METRIC_META[metric];
+    /* --- KOLORY I SIATKA NAKŁADKI OXYGEN NOT INCLUDED --- */
+    function interpolateColor(value, mode) {
+        const meta = OVERLAY_META[mode] || OVERLAY_META.temp;
         const clamped = Math.max(meta.min, Math.min(meta.max, value));
         const t = (clamped - meta.min) / (meta.max - meta.min || 1);
 
@@ -341,13 +622,21 @@
         return [last.r, last.g, last.b];
     }
 
-    function renderHeatmap(parcel) {
+    function createSvgEl(tag, attrs = {}) {
+        const el = document.createElementNS(SVG_NS, tag);
+        Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
+        return el;
+    }
+
+    function renderOniOverlay(parcel) {
         const heatmapLayer = document.getElementById("heatmapLayer");
         const heatmapImage = document.getElementById("heatmapImage");
-        if (!heatmapLayer || !heatmapImage) return;
+        const oniGridLayer = document.getElementById("oniGridLayer");
+        if (!heatmapLayer || !heatmapImage || !oniGridLayer) return;
 
-        heatmapLayer.style.display = state.showHeatmap ? "inline" : "none";
-        if (!state.showHeatmap) return;
+        const isVisible = state.overlayMode !== "off";
+        heatmapLayer.style.display = isVisible ? "inline" : "none";
+        if (!isVisible) return;
 
         const xs = parcel.corners.map((c) => c.x);
         const ys = parcel.corners.map((c) => c.y);
@@ -359,26 +648,33 @@
         const width = Math.max(maxX - minX, 1);
         const height = Math.max(maxY - minY, 1);
 
-        const gridW = 140;
-        const gridH = 105;
+        const cellSize = 18;
+        const cols = Math.max(8, Math.min(44, Math.round(width / cellSize)));
+        const rows = Math.max(8, Math.min(44, Math.round(height / cellSize)));
+
         const canvas = document.createElement("canvas");
-        canvas.width = gridW;
-        canvas.height = gridH;
+        canvas.width = cols;
+        canvas.height = rows;
         const ctx = canvas.getContext("2d");
-        const imgData = ctx.createImageData(gridW, gridH);
+        const imgData = ctx.createImageData(cols, rows);
         const data = imgData.data;
 
-        for (let py = 0; py < gridH; py++) {
-            const wy = maxY - ((py + 0.5) / gridH) * height;
-            for (let px = 0; px < gridW; px++) {
-                const wx = minX + ((px + 0.5) / gridW) * width;
-                const val = evaluateValueAt(parcel, wx, wy, state.metric);
-                const [r, g, b] = interpolateColor(val, state.metric);
-                const idx = (py * gridW + px) * 4;
+        for (let py = 0; py < rows; py++) {
+            const wy = maxY - ((py + 0.5) / rows) * height;
+            for (let px = 0; px < cols; px++) {
+                const wx = minX + ((px + 0.5) / cols) * width;
+                const val = evaluateModeValueAt(
+                    parcel,
+                    wx,
+                    wy,
+                    state.overlayMode,
+                );
+                const [r, g, b] = interpolateColor(val, state.overlayMode);
+                const idx = (py * cols + px) * 4;
                 data[idx] = r;
                 data[idx + 1] = g;
                 data[idx + 2] = b;
-                data[idx + 3] = 178;
+                data[idx + 3] = 192;
             }
         }
 
@@ -387,13 +683,33 @@
         heatmapImage.setAttribute("y", -maxY);
         heatmapImage.setAttribute("width", width);
         heatmapImage.setAttribute("height", height);
+        heatmapImage.style.imageRendering = "pixelated";
         heatmapImage.setAttribute("href", canvas.toDataURL("image/png"));
-    }
 
-    function createSvgEl(tag, attrs = {}) {
-        const el = document.createElementNS(SVG_NS, tag);
-        Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
-        return el;
+        oniGridLayer.innerHTML = "";
+        const stepX = width / cols;
+        const stepY = height / rows;
+        let pathD = "";
+
+        for (let c = 1; c < cols; c++) {
+            const gx = (minX + c * stepX).toFixed(2);
+            pathD += `M ${gx} ${(-maxY).toFixed(2)} L ${gx} ${(-minY).toFixed(2)} `;
+        }
+        for (let r = 1; r < rows; r++) {
+            const gy = (-maxY + r * stepY).toFixed(2);
+            pathD += `M ${minX.toFixed(2)} ${gy} L ${maxX.toFixed(2)} ${gy} `;
+        }
+
+        if (pathD) {
+            oniGridLayer.appendChild(
+                createSvgEl("path", {
+                    d: pathD,
+                    fill: "none",
+                    stroke: "rgba(15, 23, 42, 0.22)",
+                    "stroke-width": "0.75",
+                }),
+            );
+        }
     }
 
     function renderFieldAndCorners(parcel) {
@@ -407,13 +723,15 @@
         fieldLayer.innerHTML = "";
         cornersLayer.innerHTML = "";
 
+        const overlayActive = state.overlayMode !== "off";
+
         fieldLayer.appendChild(
             createSvgEl("polygon", {
                 points: ptsStr,
-                fill: state.showHeatmap
-                    ? "rgba(50, 167, 58, 0.04)"
-                    : "rgba(50, 167, 58, 0.14)",
-                stroke: "#32a73a",
+                fill: overlayActive
+                    ? "rgba(50, 167, 58, 0.03)"
+                    : "rgba(50, 167, 58, 0.16)",
+                stroke: overlayActive ? "#14532d" : "#32a73a",
                 "stroke-width": "2.4",
                 "stroke-linejoin": "round",
             }),
@@ -451,16 +769,11 @@
         sensorsLayer.style.display = state.showSensors ? "inline" : "none";
         if (!state.showSensors) return;
 
-        const meta = METRIC_META[state.metric];
-
         (parcel.sensors || []).forEach((sensor) => {
             const isOffline = sensor.status === "offline";
-            const hasMetric = typeof sensor[state.metric] === "number";
-            const effectiveStatus = isOffline
-                ? "offline"
-                : hasMetric
-                  ? sensor.status
-                  : "offline";
+            const hasTemp = typeof sensor.temp === "number";
+            const hasMoisture = typeof sensor.moisture === "number";
+            const effectiveStatus = isOffline ? "offline" : sensor.status;
             const color = STATUS_COLORS[effectiveStatus];
             const isSelected = sensor.id === state.selectedSensorId;
 
@@ -502,12 +815,19 @@
                 "font-family": "system-ui, sans-serif",
             });
 
-            const valText =
-                !isOffline && hasMetric
-                    ? `${sensor[state.metric].toFixed(1)}${meta.unit}`
-                    : isOffline
-                      ? "OFFLINE"
-                      : "inny typ";
+            let valText = "OFFLINE";
+            if (!isOffline) {
+                if (state.overlayMode === "moisture" && hasMoisture) {
+                    valText = `${sensor.moisture.toFixed(1)}%`;
+                } else if (hasTemp) {
+                    valText = `${sensor.temp.toFixed(1)}°C`;
+                } else if (hasMoisture) {
+                    valText = `${sensor.moisture.toFixed(1)}%`;
+                } else {
+                    valText = "aktywna";
+                }
+            }
+
             tag.textContent = `${sensor.id} (${valText})`;
             g.appendChild(tag);
 
@@ -548,60 +868,165 @@
         );
     }
 
-    function renderLegend() {
-        const meta = METRIC_META[state.metric];
+    function renderOverlayButtonsAndLegend() {
+        document
+            .querySelectorAll("#oniOverlayBar [data-overlay-mode]")
+            .forEach((btn) => {
+                btn.classList.toggle(
+                    "is-active",
+                    btn.dataset.overlayMode === state.overlayMode,
+                );
+            });
+
+        const isOverlayOn = state.overlayMode !== "off";
+        document.getElementById("heatmapLegendGroup").style.display =
+            isOverlayOn ? "flex" : "none";
+        document.getElementById("sensorsLegendGroup").style.display =
+            state.showSensors ? "flex" : "none";
+        document.getElementById("legendSep").style.display =
+            isOverlayOn && state.showSensors ? "block" : "none";
+
+        if (!isOverlayOn) return;
+
+        const meta = OVERLAY_META[state.overlayMode];
         document.getElementById("legendTitle").textContent = `${meta.label}:`;
         document.getElementById("legendMin").textContent =
             `${meta.min}${meta.unit}`;
         document.getElementById("legendMax").textContent =
             `${meta.max}${meta.unit}`;
+        document.getElementById("legendHint").textContent = meta.hint
+            ? `(${meta.hint})`
+            : "";
 
         const cssStops = meta.stops
             .map((s) => `rgb(${s.r}, ${s.g}, ${s.b}) ${Math.round(s.t * 100)}%`)
             .join(", ");
         document.getElementById("legendGradient").style.background =
             `linear-gradient(90deg, ${cssStops})`;
+    }
 
-        document.getElementById("heatmapLegendGroup").style.display =
-            state.showHeatmap ? "flex" : "none";
-        document.getElementById("sensorsLegendGroup").style.display =
-            state.showSensors ? "flex" : "none";
-        document.getElementById("legendSep").style.display =
-            state.showHeatmap && state.showSensors ? "block" : "none";
+    function renderWeatherCard(parcel) {
+        const w = parcel.weather;
+        const hudEl = document.getElementById("hudWeatherSummary");
+        const badgeEl = document.getElementById("weatherSourceBadge");
+
+        if (!w) {
+            if (hudEl) hudEl.textContent = "Brak odpowiedzi API";
+            return;
+        }
+
+        if (badgeEl) badgeEl.textContent = w.source || "Google Weather API";
+        if (hudEl) {
+            const windStr =
+                w.windSpeed != null ? ` • Wiatr ${w.windSpeed} km/h` : "";
+            hudEl.textContent = `${w.temperature.toFixed(1)} °C • Wilg. ${w.relativeHumidity}%${windStr}`;
+        }
+
+        document.getElementById("weatherCondition").textContent =
+            w.condition || "—";
+
+        const feelsStr =
+            w.feelsLikeTemperature != null
+                ? `${Number(w.feelsLikeTemperature).toFixed(1)} °C`
+                : "—";
+        document.getElementById("weatherTempPair").textContent =
+            `${w.temperature.toFixed(1)} °C / ${feelsStr}`;
+
+        const dewStr =
+            w.dewPoint != null ? `${Number(w.dewPoint).toFixed(1)} °C` : "—";
+        document.getElementById("weatherHumidityPair").textContent =
+            `${w.relativeHumidity}% / ${dewStr}`;
+
+        const precipAmount =
+            w.precipitationAmount != null
+                ? `${w.precipitationAmount} mm`
+                : "0 mm";
+        const precipProb =
+            w.precipitationProbability != null
+                ? `${w.precipitationProbability}%`
+                : "—";
+        document.getElementById("weatherPrecip").textContent =
+            `${precipAmount} / ${precipProb}`;
+
+        const windDir = w.windDirection ? ` (${w.windDirection})` : "";
+        document.getElementById("weatherWind").textContent =
+            w.windSpeed != null ? `${w.windSpeed} km/h${windDir}` : "—";
+
+        document.getElementById("weatherPressure").textContent =
+            w.airPressure != null ? `${Math.round(w.airPressure)} hPa` : "—";
+
+        const uvStr = w.uvIndex != null ? `UV ${w.uvIndex}` : "UV —";
+        const cloudStr = w.cloudCover != null ? `${w.cloudCover}%` : "—";
+        document.getElementById("weatherUvCloud").textContent =
+            `${uvStr} / ${cloudStr}`;
     }
 
     function renderSidebar(parcel) {
-        const meta = METRIC_META[state.metric];
-        const summary = computeParcelSummary(parcel, state.metric);
-        const todayVal = parcel.todayFieldReading[state.metric];
+        const activeMode =
+            state.overlayMode === "off" ? "temp" : state.overlayMode;
+        const meta = OVERLAY_META[activeMode];
+        const overlayMeta = OVERLAY_META[state.overlayMode];
+        const summary = computeParcelSummary(parcel, activeMode);
+
+        const baseWeatherTemp = getWeatherDefaultValue(parcel, "temp");
+        const baseWeatherHum = getWeatherDefaultValue(parcel, "moisture");
 
         document.getElementById("infoFieldName").textContent =
             `${parcel.name} (#${parcel.fieldId})`;
         document.getElementById("infoCoords").textContent =
-            `X: ${parcel.coordX}, Y: ${parcel.coordY}`;
+            `${parcel.coordY.toFixed(4)}°N, ${parcel.coordX.toFixed(4)}°E`;
+        document.getElementById("infoActiveOverlay").textContent =
+            overlayMeta.shortLabel;
         document.getElementById("infoTodayField").textContent =
-            `${todayVal.toFixed(1)} ${meta.unit} (${parcel.todayFieldReading.date})`;
+            `${baseWeatherTemp.toFixed(1)} °C / ${baseWeatherHum.toFixed(0)}%`;
         document.getElementById("infoSensorsCount").textContent =
-            `${summary.activeCount} aktywne / ${summary.offlineCount} offline`;
+            `${summary.activeTempCount + summary.activeMoistureCount} aktywne / ${summary.offlineCount} offline`;
 
         const pill = document.getElementById("sourceModeBanner");
-        if (summary.mode === "field_today") {
+        if (!summary.hasSensors) {
             pill.className = "source-mode-pill mode-field";
             pill.textContent =
-                "Brak aktywnych czujek – przyjęto dzisiejszy odczyt z pola";
-            document.getElementById("infoMetricSummary").textContent =
-                `${summary.value.toFixed(1)} ${meta.unit} (pole dziś)`;
-        } else if (summary.mode === "single_sensor") {
-            pill.className = "source-mode-pill mode-sensor";
-            pill.textContent =
-                "1 czujka aktywna – wartość działki nadpisana przez czujkę";
-            document.getElementById("infoMetricSummary").textContent =
-                `${summary.value.toFixed(1)} ${meta.unit} (${summary.sensorName})`;
+                "Brak aktywnych czujek – dane bazowe z Google Weather API";
         } else {
             pill.className = "source-mode-pill mode-sensor";
-            pill.textContent = `Aktywna interpolacja IDW (${summary.activeCount} czujki online)`;
-            document.getElementById("infoMetricSummary").textContent =
-                `śr. ${summary.value.toFixed(1)} ${meta.unit} (${summary.min.toFixed(1)}–${summary.max.toFixed(1)})`;
+            pill.textContent =
+                "Aktywna interpolacja czujek + parametry Google Weather API";
+        }
+
+        const formattedAvg = `${summary.value.toFixed(meta.decimals)}${meta.unit}`;
+        const statusDesc = describeModeValue(activeMode, summary.value);
+        document.getElementById("infoMetricSummary").textContent =
+            `${formattedAvg} (${statusDesc})`;
+
+        renderWeatherCard(parcel);
+
+        const probeBox = document.getElementById("probeDetails");
+        if (!state.probePoint) {
+            probeBox.className = "details-empty";
+            probeBox.textContent =
+                "Kliknij dowolne miejsce na polu, aby odczytać temperaturę, wilgotność, VPD, ET₀ oraz priorytet nawadniania.";
+        } else {
+            const ptMetrics = computePointIrrigationMetrics(
+                parcel,
+                state.probePoint.x,
+                state.probePoint.y,
+            );
+            const irrigationAdvice = describeModeValue(
+                "irrigation",
+                ptMetrics.irrigation,
+            );
+
+            probeBox.className = "";
+            probeBox.innerHTML = `
+                <dl class="meta-list">
+                    <div><dt>Pozycja na polu:</dt><dd>${state.probePoint.x.toFixed(1)} m, ${state.probePoint.y.toFixed(1)} m</dd></div>
+                    <div><dt>Temperatura:</dt><dd>${ptMetrics.temp.toFixed(1)} °C</dd></div>
+                    <div><dt>Wilgotność:</dt><dd>${ptMetrics.moisture.toFixed(1)} %</dd></div>
+                    <div><dt>Deficyt VPD:</dt><dd>${ptMetrics.vpd.toFixed(2)} kPa</dd></div>
+                    <div><dt>Ewapotranspiracja ET₀:</dt><dd>${ptMetrics.et.toFixed(2)} mm/d</dd></div>
+                    <div><dt>Priorytet nawadniania:</dt><dd>${Math.round(ptMetrics.irrigation)}% (${irrigationAdvice})</dd></div>
+                </dl>
+            `;
         }
 
         const sensorBox = document.getElementById("sensorDetails");
@@ -665,48 +1090,20 @@
                 });
         }
 
-        const probeBox = document.getElementById("probeDetails");
-        if (!state.probePoint) {
-            probeBox.className = "details-empty";
-            probeBox.textContent =
-                "Kliknij dowolne miejsce na polu, aby odczytać wartość dla wybranego punktu.";
-        } else {
-            const val = evaluateValueAt(
-                parcel,
-                state.probePoint.x,
-                state.probePoint.y,
-                state.metric,
-            );
-            const methodLabel =
-                summary.mode === "field_today"
-                    ? "Odczyt dzisiejszy z pola (brak czujek online)"
-                    : summary.mode === "single_sensor"
-                      ? "Wartość z 1 aktywnej czujki"
-                      : `Interpolacja IDW (${summary.activeCount} aktywne czujki)`;
-
-            probeBox.className = "";
-            probeBox.innerHTML = `
-                <dl class="meta-list">
-                    <div><dt>Współrzędne:</dt><dd>${state.probePoint.x.toFixed(1)} m, ${state.probePoint.y.toFixed(1)} m</dd></div>
-                    <div><dt>${meta.label}:</dt><dd>${val.toFixed(2)} ${meta.unit}</dd></div>
-                    <div><dt>Metoda:</dt><dd>${methodLabel}</dd></div>
-                </dl>
-            `;
-        }
-
         const jsonPreview = document.getElementById("jsonPreview");
         if (jsonPreview) {
+            const centroid = computeCentroid(parcel.corners);
             jsonPreview.textContent = JSON.stringify(
                 {
                     fieldId: parcel.fieldId,
                     name: parcel.name,
-                    points: parcel.rawPoints,
-                    todayFieldReading: parcel.todayFieldReading,
-                    calculationMode: summary.mode,
-                    effectiveParcelValue: Number(summary.value.toFixed(2)),
-                    activeSensorsUsed: getActiveSensors(parcel, state.metric),
-                    ignoredOfflineSensors: (parcel.sensors || []).filter(
-                        (s) => s.status === "offline",
+                    activeOverlay: state.overlayMode,
+                    coordinates: { lat: parcel.coordY, lon: parcel.coordX },
+                    googleWeather: parcel.weather,
+                    centerIrrigationMetrics: computePointIrrigationMetrics(
+                        parcel,
+                        centroid.x,
+                        centroid.y,
                     ),
                 },
                 null,
@@ -730,7 +1127,7 @@
 
         const rect = svg.getBoundingClientRect();
         const svgW = rect.width || 760;
-        const svgH = rect.height || 580;
+        const svgH = rect.height || 600;
 
         const xs = parcel.corners.map((c) => c.x);
         const ys = parcel.corners.map((c) => c.y);
@@ -742,7 +1139,7 @@
         const fieldW = Math.max(maxX - minX, 10);
         const fieldH = Math.max(maxY - minY, 10);
 
-        const padding = 95;
+        const padding = 105;
         const scaleX = (svgW - padding * 2) / fieldW;
         const scaleY = (svgH - padding * 2) / fieldH;
         const scale = Math.max(0.35, Math.min(scaleX, scaleY, 4.5));
@@ -812,18 +1209,18 @@
         const parcel = getCurrentParcel();
         if (!parcel) return;
 
-        renderHeatmap(parcel);
+        renderOniOverlay(parcel);
         renderFieldAndCorners(parcel);
         renderSensors(parcel);
         renderProbe();
-        renderLegend();
+        renderOverlayButtonsAndLegend();
         renderSidebar(parcel);
     }
 
     function bindEvents() {
         document
             .getElementById("fieldSelect")
-            ?.addEventListener("change", (e) => {
+            ?.addEventListener("change", async (e) => {
                 state.selectedFieldId = e.target.value;
                 state.selectedSensorId = null;
                 state.probePoint = null;
@@ -833,12 +1230,27 @@
                 window.history.replaceState({}, "", nextUrl);
                 fitViewToParcel();
                 renderAll();
+
+                const parcel = getCurrentParcel();
+                await fetchWeatherForParcel(parcel, false);
+                renderAll();
+            });
+
+        /* Wybór jednego ze stanów nakładki (Wyłącz / Temperatura / Wilgotność / VPD / ET₀ / Nawadnianie) */
+        document
+            .querySelectorAll("#oniOverlayBar [data-overlay-mode]")
+            .forEach((btn) => {
+                btn.addEventListener("click", () => {
+                    state.overlayMode = btn.dataset.overlayMode;
+                    renderAll();
+                });
             });
 
         document
-            .getElementById("metricSelect")
-            ?.addEventListener("change", (e) => {
-                state.metric = e.target.value;
+            .getElementById("btnRefreshWeather")
+            ?.addEventListener("click", async () => {
+                const parcel = getCurrentParcel();
+                await fetchWeatherForParcel(parcel, true);
                 renderAll();
             });
 
@@ -846,57 +1258,6 @@
             .getElementById("btnAddSensorMode")
             ?.addEventListener("click", () => {
                 setAddSensorMode(!state.addSensorMode);
-            });
-
-        document
-            .getElementById("btnSimulate")
-            ?.addEventListener("click", () => {
-                const parcel = getCurrentParcel();
-                const active = getActiveSensors(parcel, state.metric);
-                if (active.length === 0) {
-                    parcel.todayFieldReading.temp = Number(
-                        (
-                            parcel.todayFieldReading.temp +
-                            (Math.random() * 1.6 - 0.8)
-                        ).toFixed(1),
-                    );
-                    parcel.todayFieldReading.moisture = Number(
-                        (
-                            parcel.todayFieldReading.moisture +
-                            (Math.random() * 3.0 - 1.5)
-                        ).toFixed(1),
-                    );
-                } else {
-                    active.forEach((s) => {
-                        if (typeof s.temp === "number") {
-                            s.temp = Number(
-                                (s.temp + (Math.random() * 1.8 - 0.9)).toFixed(
-                                    1,
-                                ),
-                            );
-                        }
-                        if (typeof s.moisture === "number") {
-                            s.moisture = Number(
-                                Math.max(
-                                    8,
-                                    Math.min(
-                                        68,
-                                        s.moisture +
-                                            (Math.random() * 3.2 - 1.6),
-                                    ),
-                                ).toFixed(1),
-                            );
-                        }
-                    });
-                }
-                renderAll();
-            });
-
-        document
-            .getElementById("toggleHeatmap")
-            ?.addEventListener("change", (e) => {
-                state.showHeatmap = e.target.checked;
-                renderAll();
             });
 
         document
@@ -1063,6 +1424,10 @@
 
         populateParcelSelector();
         fitViewToParcel();
+        renderAll();
+
+        const currentParcel = getCurrentParcel();
+        await fetchWeatherForParcel(currentParcel, false);
         renderAll();
     }
 

@@ -5,6 +5,8 @@ services:
             dockerfile: backend/Dockerfile
         container_name: hacknation-backend
         working_dir: /workspace
+        environment:
+            GOOGLE_WEATHER_API_KEY: "AIzaSyBfNH_F-waErXef28NmfefbAr9gnPhkEVQ"
         volumes:
             - ./backend:/workspace
         ports:
@@ -15,9 +17,9 @@ services:
         stdin_open: true
         tty: true
         networks:
-            main:  
+            main:
                 ipv4_address: 192.168.0.3
-                
+
     postgres_db:
         image: postgres:15
         container_name: hacknation_database
@@ -32,10 +34,12 @@ services:
             - pgdata:/var/lib/postgresql/data
             - ./init.sql:/docker-entrypoint-initdb.d/init.sql
         networks:
-            main:  
+            main:
                 ipv4_address: 192.168.0.4
+
 volumes:
     pgdata:
+
 networks:
     main:
         ipam:
