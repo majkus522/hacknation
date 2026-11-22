@@ -2,8 +2,11 @@
     "use strict";
 
     const { createInitialState } = window.PerunMap.config;
-    const { fetchJsonSafe, saveOfflineSensorsForField, fetchWeatherForParcel } =
-        window.PerunMap.api;
+    const {
+        fetchAllFieldsAndSensors,
+        saveOfflineSensorsForField,
+        fetchWeatherForParcel,
+    } = window.PerunMap.api;
     const { hydrateParcels, isPointInPolygon } = window.PerunMap.math;
     const {
         renderOniOverlay,
@@ -227,12 +230,8 @@
     async function init() {
         bindEvents();
 
-        const [rawFields, rawSensors] = await Promise.all([
-            fetchJsonSafe("/field"),
-            fetchJsonSafe("/sensor"),
-        ]);
-
-        state.parcels = hydrateParcels(rawFields, rawSensors);
+        const { fields, sensors } = await fetchAllFieldsAndSensors();
+        state.parcels = hydrateParcels(fields, sensors);
 
         if (state.parcels.length === 0) {
             window.location.replace("panel.html");

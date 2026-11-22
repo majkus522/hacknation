@@ -7,6 +7,7 @@
     const { saveOfflineSensorsForField } = window.PerunMap.api;
     const {
         computeCentroid,
+        getActiveSensors,
         getWeatherDefaultValue,
         computePointIrrigationMetrics,
         describeModeValue,
@@ -140,6 +141,9 @@
         const overlayMeta = OVERLAY_META[state.overlayMode];
         const summary = computeParcelSummary(parcel, activeMode);
 
+        const activeTempSensors = getActiveSensors(parcel, "temp");
+        const activeMoistureSensors = getActiveSensors(parcel, "moisture");
+
         const baseWeatherTemp = getWeatherDefaultValue(parcel, "temp");
         const baseWeatherHum = getWeatherDefaultValue(parcel, "moisture");
 
@@ -155,20 +159,29 @@
             `${summary.activeTempCount + summary.activeMoistureCount} aktywne / ${summary.offlineCount} offline`;
 
         const pill = document.getElementById("sourceModeBanner");
-        if (!summary.hasSensors) {
+        if (activeMode === "temp" && activeTempSensors.length > 0) {
+            pill.className = "source-mode-pill mode-sensor";
+            pill.textContent = `Interpolacja IDW z ${activeTempSensors.length} czujek temp. (nadpisuje Weather API)`;
+        } else if (
+            activeMode === "moisture" &&
+            activeMoistureSensors.length > 0
+        ) {
+            pill.className = "source-mode-pill mode-sensor";
+            pill.textContent = `Interpolacja IDW z ${activeMoistureSensors.length} czujek wilgoci (nadpisuje Weather API)`;
+        } else if (summary.hasSensors) {
+            pill.className = "source-mode-pill mode-sensor";
+            pill.textContent =
+                "Czujki z bazy (priorytet) + uzupełnienie z Google Weather API";
+        } else {
             pill.className = "source-mode-pill mode-field";
             pill.textContent =
                 "Brak aktywnych czujek – dane bazowe z Google Weather API";
-        } else {
-            pill.className = "source-mode-pill mode-sensor";
-            pill.textContent =
-                "Aktywna interpolacja czujek + parametry Google Weather API";
         }
 
         const formattedAvg = `${summary.value.toFixed(meta.decimals)}${meta.unit}`;
-        const statusDesc = describeModeValue(activeMode, summary.value);
+        const rangeStr = `${summary.min.toFixed(meta.decimals)}–${summary.max.toFixed(meta.decimals)}${meta.unit}`;
         document.getElementById("infoMetricSummary").textContent =
-            `${formattedAvg} (${statusDesc})`;
+            `${formattedAvg} (zakres: ${rangeStr})`;
 
         renderWeatherCard(parcel);
 
@@ -192,8 +205,8 @@
             probeBox.innerHTML = `
                 <dl class="meta-list">
                     <div><dt>Pozycja na polu:</dt><dd>${state.probePoint.x.toFixed(1)} m, ${state.probePoint.y.toFixed(1)} m</dd></div>
-                    <div><dt>Temperatura:</dt><dd>${ptMetrics.temp.toFixed(1)} °C</dd></div>
-                    <div><dt>Wilgotność:</dt><dd>${ptMetrics.moisture.toFixed(1)} %</dd></div>
+                    <div><dt>Temperatura (${activeTempSensors.length > 0 ? "IDW czujek" : "Weather API"}):</dt><dd>${ptMetrics.temp.toFixed(1)} °C</dd></div>
+                    <div><dt>Wilgotność (${activeMoistureSensors.length > 0 ? "IDW czujek" : "Weather API"}):</dt><dd>${ptMetrics.moisture.toFixed(1)} %</dd></div>
                     <div><dt>Deficyt VPD:</dt><dd>${ptMetrics.vpd.toFixed(2)} kPa</dd></div>
                     <div><dt>Ewapotranspiracja ET₀:</dt><dd>${ptMetrics.et.toFixed(2)} mm/d</dd></div>
                     <div><dt>Priorytet nawadniania:</dt><dd>${Math.round(ptMetrics.irrigation)}% (${irrigationAdvice})</dd></div>
@@ -213,11 +226,15 @@
         } else {
             const isOffline = selectedSensor.status === "offline";
             const color = STATUS_COLORS[selectedSensor.status];
+            const normCoordsStr =
+                selectedSensor.normX != null && selectedSensor.normY != null
+                    ? ` (norm: ${selectedSensor.normX}, ${selectedSensor.normY})`
+                    : "";
             sensorBox.className = "";
             sensorBox.innerHTML = `
                 <dl class="meta-list">
                     <div><dt>ID / Nazwa:</dt><dd>${selectedSensor.id} – ${selectedSensor.name}</dd></div>
-                    <div><dt>Pozycja (X, Y):</dt><dd>${selectedSensor.x} m, ${selectedSensor.y} m</dd></div>
+                    <div><dt>Pozycja:</dt><dd>${selectedSensor.x} m, ${selectedSensor.y} m${normCoordsStr}</dd></div>
                     <div>
                         <dt>Status:</dt>
                         <dd>
@@ -273,6 +290,7 @@
                     name: parcel.name,
                     activeOverlay: state.overlayMode,
                     coordinates: { lat: parcel.coordY, lon: parcel.coordX },
+                    sensors: parcel.sensors,
                     googleWeather: parcel.weather,
                     centerIrrigationMetrics: computePointIrrigationMetrics(
                         parcel,

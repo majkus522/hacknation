@@ -5,7 +5,35 @@
     const { OVERLAY_META } = window.PerunMap.config;
     const { loadOfflineSensorsMap } = window.PerunMap.api;
 
-    function buildCornersFromPoints(rawPoints) {
+    const COORD_SCALE_FACTOR = 260;
+
+    // Współrzędne czujek z init_2.sql jako bezpieczny fallback, gdy API nie zwraca x/y
+    const INIT_SENSOR_COORDS_BY_ID = {
+        1: { x: 0.4, y: 0.4 },
+        2: { x: 0.3, y: 0.6 },
+        3: { x: 0.6, y: 0.1 },
+        4: { x: 0.3, y: 0.7 },
+        5: { x: 0.3, y: 0.9 },
+        6: { x: 0.1, y: 0.9 },
+    };
+
+    function getPropCaseInsensitive(obj, candidates) {
+        if (!obj || typeof obj !== "object") return undefined;
+        for (const key of candidates) {
+            if (obj[key] !== undefined && obj[key] !== null) return obj[key];
+        }
+        const lowerMap = {};
+        for (const [k, v] of Object.entries(obj)) {
+            lowerMap[k.toLowerCase()] = v;
+        }
+        for (const key of candidates) {
+            const val = lowerMap[key.toLowerCase()];
+            if (val !== undefined && val !== null) return val;
+        }
+        return undefined;
+    }
+
+    function parsePointsArray(rawPoints) {
         let pts = rawPoints;
         if (typeof pts === "string") {
             try {
@@ -21,17 +49,29 @@
                 { x: 1.0, y: 0.9 },
             ];
         }
+        return pts;
+    }
 
+    function detectScaleFactor(pts) {
         const isNormalized = pts.every(
             (p) => Math.abs(Number(p.x)) <= 1.5 && Math.abs(Number(p.y)) <= 1.5,
         );
-        const factor = isNormalized ? 260 : 1;
+        return isNormalized ? COORD_SCALE_FACTOR : 1;
+    }
 
-        return pts.map((p, idx) => ({
-            id: `P${idx + 1}`,
-            x: Number((Number(p.x) * factor).toFixed(1)),
-            y: Number((Number(p.y) * factor).toFixed(1)),
-        }));
+    function buildCornersFromPoints(rawPoints) {
+        const pts = parsePointsArray(rawPoints);
+        const factor = detectScaleFactor(pts);
+
+        return {
+            factor,
+            isNormalized: factor === COORD_SCALE_FACTOR,
+            corners: pts.map((p, idx) => ({
+                id: `P${idx + 1}`,
+                x: Number((Number(p.x) * factor).toFixed(1)),
+                y: Number((Number(p.y) * factor).toFixed(1)),
+            })),
+        };
     }
 
     function computeCentroid(corners) {
@@ -42,18 +82,44 @@
         return { x: cx, y: cy };
     }
 
+    function computeBounds(corners) {
+        const xs = corners.map((c) => c.x);
+        const ys = corners.map((c) => c.y);
+        return {
+            minX: Math.min(...xs),
+            maxX: Math.max(...xs),
+            minY: Math.min(...ys),
+            maxY: Math.max(...ys),
+        };
+    }
+
     function classifyDbSensorStatus(typeId, val) {
         if (typeId === 1) {
-            if (val < 15 || val > 70) return "crit";
-            if (val < 25 || val > 60) return "warn";
+            if (val < 18 || val > 75) return "crit";
+            if (val < 30 || val > 65) return "warn";
             return "ok";
         }
         if (typeId === 2) {
-            if (val < -3 || val > 34) return "crit";
-            if (val < 0 || val > 28) return "warn";
+            if (val < 0 || val > 34) return "crit";
+            if (val < 5 || val > 28) return "warn";
             return "ok";
         }
         return "ok";
+    }
+
+    function resolveSensorTypeId(rawType, typeName) {
+        const num = Number(rawType);
+        if (!Number.isNaN(num) && (num === 1 || num === 2)) return num;
+
+        const label = String(typeName || rawType || "").toLowerCase();
+        if (label.includes("wilg") || label.includes("moist")) return 1;
+        if (
+            label.includes("temp") ||
+            label.includes("term") ||
+            label.includes("therm")
+        )
+            return 2;
+        return Number.isNaN(num) ? 2 : num;
     }
 
     function hydrateParcels(rawFields, rawSensors) {
@@ -70,52 +136,135 @@
               : [];
 
         return fieldsArr.map((f) => {
-            const fieldId = f.fieldid ?? f.fieldId ?? f.field_id ?? f.id;
-            const corners = buildCornersFromPoints(f.points);
+            const fieldId = getPropCaseInsensitive(f, [
+                "fieldId",
+                "fieldid",
+                "field_id",
+                "id",
+            ]);
+            const rawPoints = getPropCaseInsensitive(f, ["points"]);
+            const { corners, factor } = buildCornersFromPoints(rawPoints);
             const centroid = computeCentroid(corners);
+            const bounds = computeBounds(corners);
 
-            const dbFieldSensors = sensorsArr.filter(
-                (s) =>
-                    Number(s.fieldid ?? s.fieldId ?? s.field_id) ===
-                    Number(fieldId),
-            );
+            const dbFieldSensors = sensorsArr.filter((s) => {
+                const sFieldId = getPropCaseInsensitive(s, [
+                    "fieldId",
+                    "fieldid",
+                    "field_id",
+                ]);
+                return Number(sFieldId) === Number(fieldId);
+            });
 
-            const activeSensors = dbFieldSensors.map((s, idx) => {
-                const sid = s.sensorid ?? s.sensorId ?? s.sensor_id ?? s.id;
-                const typeId = Number(s.typeid ?? s.typeId ?? s.type_id);
-                const rawVal = Number(s.value);
-
-                const angle =
-                    (idx * 2 * Math.PI) / Math.max(dbFieldSensors.length, 1);
-                const offsetR = dbFieldSensors.length === 1 ? 0 : 28;
-                const sx = Number(
-                    (centroid.x + Math.cos(angle) * offsetR).toFixed(1),
+            const activeSensors = dbFieldSensors.map((s) => {
+                const sid = getPropCaseInsensitive(s, [
+                    "sensorId",
+                    "sensorid",
+                    "sensor_id",
+                    "id",
+                ]);
+                const rawType = getPropCaseInsensitive(s, [
+                    "typeId",
+                    "typeid",
+                    "type_id",
+                    "type",
+                ]);
+                const typeName = getPropCaseInsensitive(s, [
+                    "name",
+                    "type_name",
+                    "typeName",
+                ]);
+                const rawVal = Number(
+                    getPropCaseInsensitive(s, ["value", "val", "reading"]),
                 );
-                const sy = Number(
-                    (centroid.y + Math.sin(angle) * offsetR).toFixed(1),
-                );
+
+                const typeId = resolveSensorTypeId(rawType, typeName);
+
+                let rawXVal = getPropCaseInsensitive(s, [
+                    "x",
+                    "posX",
+                    "pos_x",
+                    "coordX",
+                    "coord_x",
+                    "sensorX",
+                    "sensor_x",
+                ]);
+                let rawYVal = getPropCaseInsensitive(s, [
+                    "y",
+                    "posY",
+                    "pos_y",
+                    "coordY",
+                    "coord_y",
+                    "sensorY",
+                    "sensor_y",
+                ]);
+
+                if (
+                    (rawXVal === undefined || rawYVal === undefined) &&
+                    INIT_SENSOR_COORDS_BY_ID[Number(sid)]
+                ) {
+                    rawXVal = INIT_SENSOR_COORDS_BY_ID[Number(sid)].x;
+                    rawYVal = INIT_SENSOR_COORDS_BY_ID[Number(sid)].y;
+                }
+
+                const hasDbCoords =
+                    rawXVal !== undefined &&
+                    rawXVal !== null &&
+                    rawYVal !== undefined &&
+                    rawYVal !== null &&
+                    !Number.isNaN(Number(rawXVal)) &&
+                    !Number.isNaN(Number(rawYVal));
+
+                let sx = centroid.x;
+                let sy = centroid.y;
+
+                if (hasDbCoords) {
+                    const nx = Number(rawXVal);
+                    const ny = Number(rawYVal);
+                    const isNorm = Math.abs(nx) <= 1.5 && Math.abs(ny) <= 1.5;
+
+                    if (isNorm) {
+                        const spanX = bounds.maxX - bounds.minX || factor;
+                        const spanY = bounds.maxY - bounds.minY || factor;
+                        sx = Number((bounds.minX + nx * spanX).toFixed(1));
+                        sy = Number((bounds.minY + ny * spanY).toFixed(1));
+                    } else {
+                        sx = Number(nx.toFixed(1));
+                        sy = Number(ny.toFixed(1));
+                    }
+                }
 
                 const isMoisture = typeId === 1;
-                const isTemp = typeId === 2;
-                const moistureVal = isMoisture
-                    ? Number((rawVal <= 1 ? rawVal * 100 : rawVal).toFixed(1))
-                    : null;
-                const tempVal = isTemp ? Number(rawVal.toFixed(1)) : null;
+                const isTemp =
+                    typeId === 2 || (!isMoisture && !Number.isNaN(rawVal));
+
+                const moistureVal =
+                    isMoisture && !Number.isNaN(rawVal)
+                        ? Number(
+                              (rawVal <= 1 ? rawVal * 100 : rawVal).toFixed(1),
+                          )
+                        : null;
+                const tempVal =
+                    isTemp && !Number.isNaN(rawVal)
+                        ? Number(rawVal.toFixed(1))
+                        : null;
 
                 const status = classifyDbSensorStatus(
-                    typeId,
+                    isMoisture ? 1 : 2,
                     isMoisture ? moistureVal : tempVal,
                 );
 
                 return {
                     id: `DB-${sid}`,
-                    name: isMoisture
-                        ? `Czujnik wilgoci #${sid}`
-                        : isTemp
-                          ? `Termometr #${sid}`
-                          : `Czujka #${sid}`,
+                    name:
+                        typeName ||
+                        (isMoisture
+                            ? `Czujnik wilgoci #${sid}`
+                            : `Termometr #${sid}`),
                     x: sx,
                     y: sy,
+                    normX: hasDbCoords ? Number(rawXVal) : null,
+                    normY: hasDbCoords ? Number(rawYVal) : null,
                     status,
                     temp: tempVal,
                     moisture: moistureVal,
@@ -130,10 +279,12 @@
 
             return {
                 fieldId,
-                name: f.name || `Działka #${fieldId}`,
-                coordX: Number(f.x ?? 21.4256),
-                coordY: Number(f.y ?? 50.2871),
-                rawPoints: f.points,
+                name:
+                    getPropCaseInsensitive(f, ["name"]) ||
+                    `Działka #${fieldId}`,
+                coordX: Number(getPropCaseInsensitive(f, ["x"]) ?? 21.304768),
+                coordY: Number(getPropCaseInsensitive(f, ["y"]) ?? 50.317156),
+                rawPoints,
                 weather: null,
                 corners,
                 sensors: [...activeSensors, ...localOffline],
@@ -143,7 +294,11 @@
 
     function getActiveSensors(parcel, baseMetric) {
         return (parcel?.sensors || []).filter(
-            (s) => s.status !== "offline" && typeof s[baseMetric] === "number",
+            (s) =>
+                s.status !== "offline" &&
+                s[baseMetric] !== null &&
+                s[baseMetric] !== undefined &&
+                !Number.isNaN(Number(s[baseMetric])),
         );
     }
 
@@ -168,7 +323,7 @@
         }
 
         if (active.length === 1) {
-            return active[0][baseMetric];
+            return Number(active[0][baseMetric]);
         }
 
         let weightedSum = 0;
@@ -176,10 +331,11 @@
 
         for (let i = 0; i < active.length; i++) {
             const s = active[i];
+            const val = Number(s[baseMetric]);
             const dist = Math.hypot(x - s.x, y - s.y);
-            if (dist < 0.001) return s[baseMetric];
+            if (dist < 0.001) return val;
             const w = 1 / (dist * dist);
-            weightedSum += w * s[baseMetric];
+            weightedSum += w * val;
             weightTotal += w;
         }
 
@@ -193,11 +349,9 @@
             Math.min(100, evaluateBaseScalarAt(parcel, x, y, "moisture")),
         );
 
-        // 1. Deficyt ciśnienia pary wodnej VPD (kPa)
         const svp = 0.61078 * Math.exp((17.27 * temp) / (temp + 237.3));
         const vpd = Math.max(0, svp * (1 - moisture / 100));
 
-        // 2. Ewapotranspiracja odniesienia ET₀ (mm/dzień)
         const w = parcel?.weather || {};
         const windKmh = typeof w.windSpeed === "number" ? w.windSpeed : 8.0;
         const radFactor =
@@ -213,7 +367,6 @@
             (0.62 * tempFactor * radFactor + 1.8 * vpd) * windFactor,
         );
 
-        // 3. Priorytet nawadniania (0-100%)
         const moistureDeficit = Math.max(
             0,
             Math.min(100, ((65 - moisture) / 50) * 100),
@@ -255,7 +408,8 @@
         if (mode === "temp") {
             if (val < 5) return "Chłodno (wolny wzrost)";
             if (val <= 25) return "Optymalna temperatura";
-            return "Upał (wysokie parowanie)";
+            if (val <= 34) return "Gorąco (wysokie parowanie)";
+            return "Ekstremalny upał";
         }
         if (mode === "moisture") {
             if (val < 30) return "Niska wilgotność – sucho";
@@ -354,6 +508,7 @@
     window.PerunMap.math = {
         buildCornersFromPoints,
         computeCentroid,
+        computeBounds,
         classifyDbSensorStatus,
         hydrateParcels,
         getActiveSensors,

@@ -9,14 +9,37 @@ from security import get_current_user
 
 router = APIRouter()
 
+
+def _serialize_rows(rows):
+    return [
+        {
+            "sensorid": row.sensorid,
+            "fieldid": row.fieldid,
+            "typeid": row.typeid,
+            "value": row.value,
+            "x": row.x,
+            "y": row.y,
+            "name": row.type_name,
+        }
+        for row in rows
+    ]
+
+
 @router.get("/")
-def getSensors(sensorType: Optional[int] = Query(-1), token: Annotated[str | None, Header()] = None, db: Session = Depends(get_db)):
-    user_id = get_current_user(token, db)
+def get_sensors(
+    sensorType: Optional[int] = Query(-1),
+    token: Annotated[str | None, Header()] = None,
+    db: Session = Depends(get_db),
+):
+    get_current_user(token, db)
     stmt = (
         select(
             Sensor.sensorid,
             Sensor.fieldid,
+            Sensor.typeid,
             Sensor.value,
+            Sensor.x,
+            Sensor.y,
             SensorTypes.name.label("type_name"),
         )
         .join(SensorTypes, Sensor.typeid == SensorTypes.id)
@@ -24,19 +47,25 @@ def getSensors(sensorType: Optional[int] = Query(-1), token: Annotated[str | Non
     if sensorType >= 0:
         stmt = stmt.filter(SensorTypes.id == sensorType)
 
-    results = []
-    for row in db.execute(stmt).all():
-        results.append({"sensorid": row.sensorid, "fieldid": row.fieldid, "value": row.value, "name": row.type_name})
-    return results
+    return _serialize_rows(db.execute(stmt).all())
+
 
 @router.get("/{fieldId}")
-def getSensors(fieldId: int, sensorType: Optional[int] = Query(-1), token: Annotated[str | None, Header()] = None, db: Session = Depends(get_db)):
-    user_id = get_current_user(token, db)
+def get_field_sensors(
+    fieldId: int,
+    sensorType: Optional[int] = Query(-1),
+    token: Annotated[str | None, Header()] = None,
+    db: Session = Depends(get_db),
+):
+    get_current_user(token, db)
     stmt = (
         select(
             Sensor.sensorid,
             Sensor.fieldid,
+            Sensor.typeid,
             Sensor.value,
+            Sensor.x,
+            Sensor.y,
             SensorTypes.name.label("type_name"),
         )
         .filter(Sensor.fieldid == fieldId)
@@ -45,7 +74,4 @@ def getSensors(fieldId: int, sensorType: Optional[int] = Query(-1), token: Annot
     if sensorType >= 0:
         stmt = stmt.filter(SensorTypes.id == sensorType)
 
-    results = []
-    for row in db.execute(stmt).all():
-        results.append({"sensorid": row.sensorid, "fieldid": row.fieldid, "value": row.value, "name": row.type_name})
-    return results
+    return _serialize_rows(db.execute(stmt).all())
