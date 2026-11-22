@@ -3,11 +3,16 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Perun – Podgląd działki</title>
+        <title>Perun – Podgląd działki i nakładki nawadniania</title>
         <link rel="stylesheet" href="./styles/main.css" />
         <link rel="stylesheet" href="./styles/auth.css" />
         <link rel="stylesheet" href="./styles/fieldMap.css" />
         <script src="./scripts/auth.js"></script>
+        <script src="./scripts/fieldMap/config.js" defer></script>
+        <script src="./scripts/fieldMap/api.js" defer></script>
+        <script src="./scripts/fieldMap/math.js" defer></script>
+        <script src="./scripts/fieldMap/svgRenderer.js" defer></script>
+        <script src="./scripts/fieldMap/uiSidebar.js" defer></script>
         <script src="./scripts/fieldMap.js" defer></script>
     </head>
     <body data-require-auth="true">
@@ -32,20 +37,16 @@
                     <label for="fieldSelect">Działka:</label>
                     <select id="fieldSelect"></select>
                 </div>
-                <div class="field-selector-group">
-                    <label for="metricSelect">Parametr:</label>
-                    <select id="metricSelect">
-                        <option value="temp" selected>
-                            Temperatura gleby (°C)
-                        </option>
-                        <option value="moisture">Wilgotność gleby (%)</option>
-                    </select>
-                </div>
             </div>
 
             <div class="topbar-right">
-                <button type="button" id="btnSimulate" class="btn-action">
-                    Symuluj odczyt
+                <button
+                    type="button"
+                    id="btnRefreshWeather"
+                    class="btn-outline"
+                    title="Pobierz aktualne dane z Google Weather API"
+                >
+                    Odśwież pogodę
                 </button>
                 <button type="button" id="btnAddSensorMode" class="btn-outline">
                     + Dodaj czujkę
@@ -64,33 +65,79 @@
             <!-- CENTRALNA PLANSZA SVG -->
             <section
                 class="map-stage"
-                aria-label="Mapa pola z heatmapą i czujkami"
+                aria-label="Mapa pola z nakładkami nawadniania i czujkami"
             >
-                <div class="map-toolbar">
-                    <label
-                        class="toolbar-toggle"
-                        title="Pokaż lub ukryj interpolowaną heatmapę"
+                <!-- PASEK WYBORU NAKŁADEK (STYL OXYGEN NOT INCLUDED) -->
+                <div class="map-toolbar-stack">
+                    <div
+                        class="oni-overlay-bar"
+                        id="oniOverlayBar"
+                        role="group"
+                        aria-label="Wybór nakładki środowiskowej"
                     >
-                        <input type="checkbox" id="toggleHeatmap" checked />
-                        <span>Heatmapa</span>
-                    </label>
-                    <label
-                        class="toolbar-toggle"
-                        title="Pokaż lub ukryj punkty czujek"
-                    >
-                        <input type="checkbox" id="toggleSensors" checked />
-                        <span>Czujki</span>
-                    </label>
-                    <div class="toolbar-sep"></div>
-                    <button type="button" id="btnZoomIn" title="Przybliż">
-                        +
-                    </button>
-                    <button type="button" id="btnZoomOut" title="Oddal">
-                        &minus;
-                    </button>
-                    <button type="button" id="btnFitView" title="Dopasuj widok">
-                        Dopasuj
-                    </button>
+                        <button
+                            type="button"
+                            class="oni-mode-btn oni-mode-off"
+                            data-overlay-mode="off"
+                            title="Wyłącz nakładkę kolorów"
+                        >
+                            Wyłącz
+                        </button>
+                        <button
+                            type="button"
+                            class="oni-mode-btn is-active"
+                            data-overlay-mode="temp"
+                            title="Temperatura powietrza / czujek (°C)"
+                        >
+                            Temperatura
+                        </button>
+                        <button
+                            type="button"
+                            class="oni-mode-btn"
+                            data-overlay-mode="moisture"
+                            title="Wilgotność gleby / powietrza (%)"
+                        >
+                            Wilgotność
+                        </button>
+                        <button
+                            type="button"
+                            class="oni-mode-btn"
+                            data-overlay-mode="irrigation"
+                            title="Wskaźnik zapotrzebowania na nawadnianie (%)"
+                        >
+                            Nawadnianie
+                        </button>
+                    </div>
+
+                    <div class="map-toolbar">
+                        <label
+                            class="toolbar-toggle"
+                            title="Pokaż lub ukryj punkty czujek"
+                        >
+                            <input type="checkbox" id="toggleSensors" checked />
+                            <span>Czujki</span>
+                        </label>
+                        <div class="toolbar-sep"></div>
+                        <button type="button" id="btnZoomIn" title="Przybliż">
+                            +
+                        </button>
+                        <button type="button" id="btnZoomOut" title="Oddal">
+                            &minus;
+                        </button>
+                        <button
+                            type="button"
+                            id="btnFitView"
+                            title="Dopasuj widok"
+                        >
+                            Dopasuj
+                        </button>
+                    </div>
+                </div>
+
+                <!-- MINI HUD POGODOWY W PRAWYM GÓRNYM ROGU MAPY -->
+                <div class="oni-hud-pill" id="oniHudPill">
+                    <span class="oni-hud-title">GOOGLE WEATHER</span>
+                    <span id="hudWeatherSummary">Pobieranie danych...</span>
                 </div>
 
                 <div id="modeBanner" class="mode-banner hidden">
@@ -127,13 +174,14 @@
                             fill="url(#gridPattern)"
                         />
 
-                        <!-- Warstwa heatmapy przycięta do kształtu pola -->
+                        <!-- Nakładka ONI (mapa kolorów + siatka kafelków) przycięta do kształtu pola -->
                         <g id="heatmapLayer" clip-path="url(#fieldClip)">
                             <image
                                 id="heatmapImage"
                                 href=""
                                 preserveAspectRatio="none"
                             />
+                            <g id="oniGridLayer"></g>
                         </g>
 
                         <!-- Obrys granic pola -->
@@ -154,20 +202,21 @@
                     X: 0.0 m | Y: 0.0 m
                 </div>
 
-                <!-- LEGENDA HEATMAPY I STANÓW CZUJEK -->
+                <!-- LEGENDA NAKŁADKI I STANÓW CZUJEK -->
                 <div class="map-legend">
                     <div class="legend-group" id="heatmapLegendGroup">
                         <span id="legendTitle" class="legend-title"
                             >Temperatura:</span
                         >
                         <div class="legend-scale">
-                            <span id="legendMin">0°C</span>
+                            <span id="legendMin">-5°C</span>
                             <div
                                 id="legendGradient"
                                 class="legend-gradient"
                             ></div>
-                            <span id="legendMax">28°C</span>
+                            <span id="legendMax">35°C</span>
                         </div>
+                        <span id="legendHint" class="legend-hint"></span>
                     </div>
                     <div class="legend-sep" id="legendSep"></div>
                     <div class="legend-group" id="sensorsLegendGroup">
@@ -184,7 +233,7 @@
                 <div class="sidebar-card">
                     <h2>Parametry działki</h2>
                     <div id="sourceModeBanner" class="source-mode-pill">
-                        Odczyt dzisiejszy z pola
+                        Wartość domyślna z Google Weather API
                     </div>
                     <dl class="meta-list">
                         <div>
@@ -192,11 +241,15 @@
                             <dd id="infoFieldName">—</dd>
                         </div>
                         <div>
-                            <dt>Lokalizacja (X, Y):</dt>
+                            <dt>Współrzędne (lat, lon):</dt>
                             <dd id="infoCoords">—</dd>
                         </div>
                         <div>
-                            <dt>Odczyt pola (dziś):</dt>
+                            <dt>Aktywna nakładka:</dt>
+                            <dd id="infoActiveOverlay">—</dd>
+                        </div>
+                        <div>
+                            <dt>Wartość bazowa (Weather API):</dt>
                             <dd id="infoTodayField">—</dd>
                         </div>
                         <div>
@@ -204,10 +257,59 @@
                             <dd id="infoSensorsCount">—</dd>
                         </div>
                         <div>
-                            <dt>Wartość dla działki:</dt>
+                            <dt>Wartość efektywna pola:</dt>
                             <dd id="infoMetricSummary">—</dd>
                         </div>
                     </dl>
+                </div>
+
+                <!-- KARTA GOOGLE WEATHER API -->
+                <div class="sidebar-card weather-card">
+                    <div class="weather-card-header">
+                        <h2>Google Weather API</h2>
+                        <span id="weatherSourceBadge" class="weather-badge"
+                            >API</span
+                        >
+                    </div>
+                    <dl class="meta-list">
+                        <div>
+                            <dt>Warunki:</dt>
+                            <dd id="weatherCondition">—</dd>
+                        </div>
+                        <div>
+                            <dt>Temperatura / Odczuw.:</dt>
+                            <dd id="weatherTempPair">—</dd>
+                        </div>
+                        <div>
+                            <dt>Wilgotność / Punkt rosy:</dt>
+                            <dd id="weatherHumidityPair">—</dd>
+                        </div>
+                        <div>
+                            <dt>Opady (suma / szansa):</dt>
+                            <dd id="weatherPrecip">—</dd>
+                        </div>
+                        <div>
+                            <dt>Wiatr:</dt>
+                            <dd id="weatherWind">—</dd>
+                        </div>
+                        <div>
+                            <dt>Ciśnienie atmosferyczne:</dt>
+                            <dd id="weatherPressure">—</dd>
+                        </div>
+                        <div>
+                            <dt>Indeks UV / Zachmurzenie:</dt>
+                            <dd id="weatherUvCloud">—</dd>
+                        </div>
+                    </dl>
+                </div>
+
+                <div class="sidebar-card">
+                    <h2>Odczyt w punkcie (nawadnianie)</h2>
+                    <div id="probeDetails" class="details-empty">
+                        Kliknij dowolne miejsce na polu, aby odczytać
+                        temperaturę, wilgotność, VPD, ET₀ oraz priorytet
+                        nawadniania.
+                    </div>
                 </div>
 
                 <div class="sidebar-card">
@@ -215,14 +317,6 @@
                     <div id="sensorDetails" class="details-empty">
                         Kliknij kropkę czujki na mapie, aby podejrzeć jej stan i
                         odczyty.
-                    </div>
-                </div>
-
-                <div class="sidebar-card">
-                    <h2>Odczyt w punkcie (IDW)</h2>
-                    <div id="probeDetails" class="details-empty">
-                        Kliknij dowolne miejsce na polu, aby odczytać wartość
-                        dla wybranego punktu.
                     </div>
                 </div>
 
