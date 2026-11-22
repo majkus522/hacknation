@@ -44,6 +44,33 @@ CREATE TABLE Logs (
 	time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE Crops (
+    crop_id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,
+
+    "I" SMALLINT,
+    "II" SMALLINT,
+    "III" SMALLINT,
+    "IV" SMALLINT,
+    "V" SMALLINT,
+    "VI" SMALLINT,
+    "VII" SMALLINT,
+    "VIII" SMALLINT,
+    "IX" SMALLINT,
+    "X" SMALLINT,
+    "XI" SMALLINT,
+    "XII" SMALLINT,
+
+    consumption_from SMALLINT,
+    consumption_to SMALLINT,
+
+    CHECK (
+        consumption_from IS NULL
+        OR consumption_to IS NULL
+        OR consumption_from <= consumption_to
+    )
+);
+
 INSERT INTO SoilTypes (name) VALUES
 ('Gleba brunatna'),
 ('Gleba płowa'),
@@ -67,5 +94,55 @@ INSERT INTO Users (username, email, password) VALUES
 
 INSERT INTO Sensors (fieldId, typeId, value) VALUES 
 (1, 1, 0.4),
-(1, 2, 0.5),
-(2, 1, 0.6);
+(1, 2, 0.5);
+
+INSERT INTO crops (
+    crop_id,
+    name,
+    "IV", "V", "VI", "VII", "VIII", "IX",
+    consumption_from,
+    consumption_to
+)
+VALUES
+(
+    1,
+    'Pszenica ozima',
+    35, 65, 70, 60, NULL, NULL,
+    500, 600
+),
+(
+    2,
+    'Pszenica jara',
+    45, 65, 75, 65, NULL, NULL,
+    500, 600
+),
+(
+    3,
+    'Żyto',
+    35, 70, 70, 45, NULL, NULL,
+    400, 500
+),
+(
+    4,
+    'Rzepak ozimy',
+    50, 70, 75, 30, NULL, NULL,
+    600, 700
+),
+(
+    5,
+    'Kukurydza',
+    NULL, 50, 60, 70, 65, 50,
+    300, 400
+),
+(
+    6,
+    'Burak cukrowy',
+    15, 65, 74, 85, 78, 54,
+    350, 450
+),
+(
+    7,
+    'Trwałe użytki zielone',
+    50, 70, 90, 100, 80, 60,
+    NULL, NULL
+);
