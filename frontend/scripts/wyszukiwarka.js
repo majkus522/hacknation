@@ -8,6 +8,7 @@
     const state = {
         ostatniBboxStr: "",
         ostatniKsztalt: null,
+        lastAnalysisReport: null,
     };
 
     function pokazStatus(tresc, typ) {
@@ -15,6 +16,390 @@
         if (!box) return;
         box.textContent = tresc;
         box.className = "perun-gp-status " + typ;
+    }
+
+    function setAnalysisStatus(message, type) {
+        const status = document.getElementById("analysisReportStatus");
+        if (!status) return;
+        status.textContent = message;
+        status.className = `perun-gp-status ${type}`;
+    }
+
+    async function loadAnalysisCrops() {
+        const select = document.getElementById("analysisCropSelect");
+        if (!select) return;
+
+        const analysisDateInput = document.getElementById("analysisDate");
+        if (analysisDateInput) {
+            analysisDateInput.max = "2016-12-31";
+            analysisDateInput.value = "2016-12-31";
+        }
+
+        try {
+            const response = await window.PerunAuth.authFetch("/crop/");
+            const crops = await response.json().catch(() => []);
+            if (!response.ok) {
+                throw new Error(crops.detail || `Błąd pobierania upraw (${response.status})`);
+            }
+            if (!Array.isArray(crops) || crops.length === 0) {
+                throw new Error("Brak upraw w bazie.");
+            }
+
+            select.replaceChildren(new Option("Wybierz uprawę…", ""));
+            crops.forEach((crop) => {
+                select.add(new Option(crop.name, crop.crop_id));
+            });
+        } catch (error) {
+            select.replaceChildren(new Option("Nie udało się pobrać upraw", ""));
+            setAnalysisStatus(error.message, "error");
+        }
+    }
+
+    function addReportText(container, tag, text, className = "") {
+        const element = document.createElement(tag);
+        element.textContent = text == null || text === "" ? "Brak danych" : String(text);
+        if (className) element.className = className;
+        container.appendChild(element);
+        return element;
+    }
+
+    function addReportList(container, title, items, renderItem = (item) => item) {
+        addReportText(container, "h3", title);
+        if (!items || items.length === 0) {
+            addReportText(container, "p", "Brak danych.");
+            return;
+        }
+        const list = document.createElement("ul");
+        items.forEach((item) => addReportText(list, "li", renderItem(item)));
+        container.appendChild(list);
+    }
+
+    function formatNumber(value, digits = 1) {
+        if (value == null || value === "" || !Number.isFinite(Number(value))) {
+            return "—";
+        }
+        return new Intl.NumberFormat("pl-PL", {
+            minimumFractionDigits: digits,
+            maximumFractionDigits: digits,
+        }).format(Number(value));
+    }
+
+    function addReportCards(container, title, items, className = "") {
+        if (title) addReportText(container, "h3", title);
+        if (!items.length) {
+            addReportText(container, "p", "Brak danych.");
+            return;
+        }
+
+        const grid = document.createElement("div");
+        grid.className = `analysis-kpi-grid${className ? ` ${className}` : ""}`;
+        items.forEach((item) => {
+            const card = document.createElement("article");
+            card.className = "analysis-kpi-card";
+            addReportText(card, "span", item.label, "analysis-kpi-label");
+            addReportText(card, "strong", item.value, "analysis-kpi-value");
+            if (item.note) {
+                addReportText(card, "span", item.note, "analysis-kpi-note");
+            }
+            grid.appendChild(card);
+        });
+        container.appendChild(grid);
+    }
+
+    function renderAnalysisReport(report) {
+        const output = document.getElementById("analysisReportOutput");
+        if (!output) return;
+        const reportSection = document.getElementById("analysisReportSection");
+        if (reportSection) reportSection.hidden = false;
+        output.replaceChildren();
+        output.hidden = false;
+
+        const plot = report.plot || {};
+        const crop = report.crop || {};
+        const current = report.current_situation || {};
+        const history = report.historical_drought_vulnerability || {};
+        const risk = report.risk || {};
+        const soil = current.soil_moisture || {};
+        const terrain = current.terrain || {};
+        const hydrology = current.hydrology || {};
+
+        addReportText(output, "h2", "Raport analizy działki", "analysis-report-title");
+        addReportText(
+            output,
+            "p",
+            `Działka: ${plot.name || "bez nazwy"}  |  Uprawa: ${crop.name || "—"}  |  Data analizy: ${report.analysis_date || "—"}`,
+            "analysis-report-subtitle",
+        );
+        addReportText(
+            output,
+            "p",
+            `Współrzędne: ${formatNumber(plot.location?.latitude, 6)}; ${formatNumber(plot.location?.longitude, 6)}`,
+            "analysis-report-coordinates",
+        );
+        const riskSummary = document.createElement("div");
+        riskSummary.className = "analysis-risk-summary";
+        const riskCard = document.createElement("article");
+        riskCard.className = "analysis-kpi-card analysis-kpi-card-risk";
+        addReportText(riskCard, "span", "Poziom ryzyka suszy", "analysis-kpi-label");
+        addReportText(riskCard, "strong", risk.level || "brak danych", "analysis-kpi-value");
+        addReportText(riskCard, "span", `Wynik algorytmu: ${risk.score ?? "—"}/100 punktów`, "analysis-kpi-note");
+        riskSummary.appendChild(riskCard);
+        output.appendChild(riskSummary);
+        addReportList(output, "Co wpłynęło na ocenę", risk.components || []);
+
+        const waterSection = document.createElement("section");
+        waterSection.className = "analysis-report-section";
+        addReportText(waterSection, "h3", `Sytuacja wodna · ${report.analysis_date || "wybrana data"}`);
+        addReportText(
+            waterSection,
+            "p",
+            `Suma miesięcznych niedoborów względem norm uprawy: ${formatNumber(current.deficit_total_mm)} mm.`,
+        );
+        addReportCards(
+            waterSection,
+            "Opady w analizowanym okresie",
+            (current.monthly || []).map((item) => ({
+                label: item.month_name,
+                value: `${formatNumber(item.rainfall_mm)} mm opadu`,
+                note: `Norma: ${item.crop_norm_mm == null ? "brak" : `${formatNumber(item.crop_norm_mm)} mm`} · Niedobór: ${item.deficit_mm == null ? "—" : `${formatNumber(item.deficit_mm)} mm`}`,
+            })),
+            "analysis-kpi-grid-monthly",
+        );
+        output.appendChild(waterSection);
+
+        const soilSection = document.createElement("section");
+        soilSection.className = "analysis-report-section";
+        addReportText(soilSection, "h3", "Wilgotność gleby");
+        if (soil.physical_profile?.classifications) {
+            const classes = soil.physical_profile.classifications;
+            addReportText(
+                soilSection,
+                "p",
+                `Kompleks: ${classes.agricultural_complex || "—"}  |  Typ gleby: ${classes.soil_type || "—"}  |  Podłoże: ${classes.parent_material_1 || "—"}`,
+            );
+        }
+        addReportCards(
+            soilSection,
+            "Wilgotność objętościowa (m³/m³)",
+            Object.values(soil.depths || {}).map((depth) => ({
+                label: depth.label,
+                value: formatNumber(depth.latest_value, 3),
+                note: `Typowo: ${formatNumber(depth.typical_value, 3)} · Odchylenie: ${formatNumber(depth.anomaly, 3)} m³/m³`,
+            })),
+        );
+        if (!soil.available && !soil.physical_profile?.available) {
+            addReportText(soilSection, "p", soil.physical_profile?.message || "Brak danych o wilgotności lub profilu gleby.");
+        }
+        output.appendChild(soilSection);
+
+        const historySection = document.createElement("section");
+        historySection.className = "analysis-report-section";
+        addReportText(historySection, "h3", "Historyczna podatność na suszę");
+        addReportText(
+            historySection,
+            "p",
+            `Okres: ${history.period?.from || "—"} – ${history.period?.to || "—"}.`,
+            "analysis-report-note",
+        );
+        addReportCards(
+            historySection,
+            "Podsumowanie okresu",
+            [
+                { label: "Miesiące poniżej normy", value: history.months_below_crop_norm ?? "—" },
+                { label: "Średni deficyt w miesiącach z niedoborem", value: `${formatNumber(history.average_deficit_mm)} mm` },
+                { label: "Największy niedobór", value: `${formatNumber(history.largest_deficit?.value_mm)} mm`, note: `${history.largest_deficit?.month_name || "—"} ${history.largest_deficit?.year || ""}` },
+                { label: "Okresy suche", value: history.dry_period_count ?? "—" },
+            ],
+        );
+        addReportCards(
+            historySection,
+            "Powtarzalność według miesięcy",
+            Object.values(history.repeatability_by_month || {}).map((item) => ({
+                label: item.name,
+                value: `${Math.round(item.frequency * 100)}% lat`,
+                note: `Niedobór w ${item.years_with_deficit}/${item.observed_years} lat · średnio ${formatNumber(item.average_deficit_mm)} mm`,
+            })),
+        );
+        addReportCards(
+            historySection,
+            "Anomalia opadów w analizowanym roku",
+            Object.values(history.rainfall_anomaly_by_month || {}).map((item) => ({
+                label: item.name,
+                value: `${formatNumber(item.anomaly_mm)} mm`,
+                note: `W analizowanym roku: ${formatNumber(item.last_value_mm)} mm · Typowo: ${formatNumber(item.typical_rainfall_mm)} mm`,
+            })),
+        );
+        output.appendChild(historySection);
+
+        const environmentSection = document.createElement("section");
+        environmentSection.className = "analysis-report-section";
+        addReportText(environmentSection, "h3", "Ukształtowanie terenu i dostęp do wody");
+        if (terrain.available) {
+            addReportCards(
+                environmentSection,
+                "Ukształtowanie terenu",
+                [
+                    { label: "Wysokość n.p.m.", value: `${formatNumber(terrain.elevation_m)} m` },
+                    { label: "Nachylenie", value: `${formatNumber(terrain.slope_percent)}%`, note: `${formatNumber(terrain.slope_degrees)}°` },
+                    { label: "Kierunek stoku", value: terrain.aspect || "—" },
+                    { label: "Ryzyko spływu", value: terrain.surface_runoff_risk || "—" },
+                ],
+            );
+        } else {
+            addReportText(environmentSection, "p", terrain.message || "Brak danych wysokościowych.");
+        }
+        if (hydrology.available) {
+            addReportCards(
+                environmentSection,
+                "Najbliższe obiekty wodne",
+                [
+                    { label: "Zbiornik", value: hydrology.nearest_reservoir?.distance_m == null ? "Brak w promieniu" : `${formatNumber(hydrology.nearest_reservoir.distance_m)} m` },
+                    { label: "Ciek wodny", value: hydrology.nearest_waterway?.distance_m == null ? "Brak w promieniu" : `${formatNumber(hydrology.nearest_waterway.distance_m)} m` },
+                ],
+            );
+        } else {
+            addReportText(environmentSection, "p", hydrology.message || "Brak danych o ciekach i zbiornikach.");
+        }
+        output.appendChild(environmentSection);
+
+        addReportCards(
+            output,
+            "Prognoza pogody",
+            (report.forecast_weather || []).map((item) => ({
+                label: item.date || "Prognoza",
+                value: item.temperature_mean == null ? "—" : `${formatNumber(item.temperature_mean)} °C`,
+                note: `Średnia temperatura dobowa · Opad: ${formatNumber(item.rain_sum)} mm`,
+            })),
+            "analysis-kpi-grid-forecast",
+        );
+        if (report.forecast_note) {
+            addReportText(output, "p", report.forecast_note, "analysis-report-note");
+        }
+        addReportList(
+            output,
+            "Rekomendacje",
+            report.recommendations || [],
+            (item) => `${item.action} — ${item.reason}`,
+        );
+        addReportList(
+            output,
+            "Źródła i ograniczenia",
+            [
+                ...(report.sources || []).map((item) => {
+                    const ranges = [item.historical_range, item.current_range]
+                        .filter(Boolean)
+                        .map((range) => `${range.from}–${range.to}`)
+                        .join(", ");
+                    return `${item.name}${item.available === false ? " (niedostępne)" : ""}${ranges ? `; zakres: ${ranges}` : ""}${item.retrieved_at ? `; pobrano: ${item.retrieved_at}` : ""}${item.url ? `; ${item.url}` : ""}`;
+                }),
+                ...(report.limitations || []),
+            ],
+        );
+
+        const descriptions = document.createElement("details");
+        descriptions.className = "analysis-variable-descriptions";
+        descriptions.open = true;
+        addReportText(descriptions, "summary", "Opis zmiennych i wskaźników");
+        const descriptionList = document.createElement("ul");
+        [
+            "Suma opadów (mm) — suma opadu zarejestrowanego w danym dniu lub miesiącu.",
+            "Średnia temperatura dobowa (°C) — średnia z godzinowych wartości temperatury na wysokości 2 m; dla prognozy i raportu pokazana do 0,1°C.",
+            "Wilgotność gleby (m³/m³) — objętościowa zawartość wody w warstwie 0–7 cm lub 7–28 cm; odchylenie porównuje wynik z typową wartością dla tego samego miesiąca.",
+            "Typowy opad — średnia suma opadów z tego samego miesiąca w dostępnych latach historycznych; anomalia to opad z roku analizy minus ta średnia. Wartość ujemna oznacza opad niższy od typowego.",
+            "Norma opadów — miesięczna wartość normy przypisana wybranej uprawie w bazie. „Brak normy” oznacza, że jej nie zdefiniowano.",
+            "Niedobór opadów (mm) — dodatnia różnica między normą uprawy a sumą opadów; zero oznacza, że opad osiągnął normę.",
+            "Częstość niedoborów — udział lat z opadem poniżej normy wśród lat, dla których są dane.",
+            "Okres suchy — ciąg kolejnych miesięcy poniżej normy uprawy.",
+            "Nachylenie (%) — szacowany spadek terenu; kierunek stoku opisuje jego ekspozycję. Dane są próbkowane wokół punktu działki.",
+            "Odległość od wody — odległość do najbliższego zbiornika lub cieku z mapy OpenStreetMap; nie potwierdza możliwości ani prawa poboru wody.",
+            "Ryzyko suszy (0–100) — punktowa ocena łącząca bieżący deficyt, historię powtarzalnych niedoborów, wilgotność gleby, retencję i ukształtowanie terenu; nie jest prawdopodobieństwem procentowym.",
+        ].forEach((description) => addReportText(descriptionList, "li", description));
+        descriptions.appendChild(descriptionList);
+        output.appendChild(descriptions);
+    }
+
+    async function startAnalysis() {
+        const parcel = state.ostatniKsztalt;
+        const cropId = document.getElementById("analysisCropSelect")?.value;
+        const analysisDate = document.getElementById("analysisDate")?.value;
+        const pdfButton = document.getElementById("btnSaveAnalysisPdf");
+
+        if (!parcel) {
+            setAnalysisStatus("Najpierw wyszukaj działkę lub podaj jej współrzędne.", "error");
+            return;
+        }
+        if (!cropId || !analysisDate) {
+            setAnalysisStatus("Wybierz uprawę i datę, dla której chcesz sprawdzić warunki.", "error");
+            return;
+        }
+
+        const button = document.getElementById("btnStartAnalysis");
+        button.disabled = true;
+        pdfButton.disabled = true;
+        setAnalysisStatus("Pobieranie danych i przygotowywanie analizy…", "info");
+
+        try {
+            const params = new URLSearchParams({
+                latitude: String(parcel.centroid.lat),
+                longitude: String(parcel.centroid.lon),
+                field_name: `${parcel.id} (${parcel.lokalizacja.obreb} ${parcel.lokalizacja.nr})`,
+                analysis_date: analysisDate,
+            });
+            const response = await window.PerunAuth.authFetch(
+                `/openmeteo/analysis/${encodeURIComponent(cropId)}?${params}`,
+            );
+            const report = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(report.detail || `Błąd analizy (${response.status})`);
+            }
+
+            state.lastAnalysisReport = report;
+            renderAnalysisReport(report);
+            pdfButton.disabled = false;
+                setAnalysisStatus("Analiza gotowa. Raport nie jest zapisywany w bazie; możesz pobrać go jako PDF.", "ok");
+        } catch (error) {
+            state.lastAnalysisReport = null;
+            setAnalysisStatus(error.message || "Nie udało się wykonać analizy.", "error");
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    function saveAnalysisAsPdf() {
+        const report = state.lastAnalysisReport;
+        const output = document.getElementById("analysisReportOutput");
+        if (!report || !output) return;
+
+        const printWindow = window.open("", "_blank");
+        if (!printWindow) {
+            setAnalysisStatus("Przeglądarka zablokowała okno raportu. Zezwól na wyskakujące okna i spróbuj ponownie.", "error");
+            return;
+        }
+
+        const title = `Raport Perun - ${report.plot?.name || "dzialka"}`;
+        printWindow.document.open();
+        printWindow.document.write(`<!doctype html>
+            <html lang="pl"><head><meta charset="UTF-8">
+            <title>${title.replace(/[<>&"]/g, "")}</title>
+            <style>
+                body{font:10.5pt Arial,sans-serif;color:#1f2937;max-width:900px;margin:28px auto;line-height:1.45}
+                h2,h3{color:#14532d}h2{font-size:19pt;margin-bottom:4px}h3{font-size:12pt;margin-top:16px}
+                p{margin:5px 0 9px}ul{padding-left:22px}li{margin:4px 0}
+                .analysis-report-subtitle{font-weight:bold}.analysis-report-coordinates{color:#64748b;font-size:9pt}
+                .analysis-report-section{margin-top:16px;padding-top:4px;border-top:1px solid #d1d5db}
+                .analysis-risk-summary{margin:14px 0}.analysis-kpi-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:8px 0 14px}
+                .analysis-kpi-grid-monthly{grid-template-columns:repeat(3,minmax(0,1fr))}.analysis-kpi-grid-forecast{grid-template-columns:repeat(4,minmax(0,1fr))}
+                .analysis-kpi-card{display:flex;flex-direction:column;gap:4px;padding:9px;border:1px solid #d1d5db;border-radius:7px;background:#fff;break-inside:avoid}
+                .analysis-kpi-label{color:#526071;font-size:8pt}.analysis-kpi-value{color:#1f2937;font-size:11pt;font-weight:bold;overflow-wrap:anywhere}
+                .analysis-kpi-note{color:#15803d;font-size:7.5pt}.analysis-kpi-card-risk{border-color:#bbf7d0;background:#f0fdf4}
+                .analysis-kpi-card-risk .analysis-kpi-value{color:#166534;text-transform:capitalize}
+                .analysis-variable-descriptions{margin-top:18px;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0}
+                .analysis-variable-descriptions summary{font-weight:bold;color:#14532d}.analysis-report-note{color:#64748b}
+                @page{size:A4;margin:18mm}
+            </style></head><body>${output.innerHTML}</body></html>`);
+        printWindow.document.close();
+        printWindow.focus();
+        window.setTimeout(() => printWindow.print(), 250);
     }
 
     /* --- SPRAWDZENIE UPRAWNIEŃ UŻYTKOWNIKA / ADMINISTRATORA --- */
@@ -415,7 +800,6 @@
             );
 
             aktualizujMetadaneDzialki(wynikDlaPeruna);
-            odswiezDaneSrodowiskowe();
 
             document.dispatchEvent(
                 new CustomEvent("perun:ksztaltGotowy", {
@@ -742,12 +1126,16 @@
             ?.addEventListener("click", kopiujPunktyJson);
 
         document
-            .getElementById("meteoPeriodSelect")
-            ?.addEventListener("change", odswiezDaneSrodowiskowe);
-
-        document
             .getElementById("btnSaveUserParcel")
             ?.addEventListener("click", zapiszDzialkeDlaUzytkownika);
+
+        document
+            .getElementById("btnStartAnalysis")
+            ?.addEventListener("click", startAnalysis);
+
+        document
+            .getElementById("btnSaveAnalysisPdf")
+            ?.addEventListener("click", saveAnalysisAsPdf);
 
         document
             .getElementById("btnAddWatchedParcel")
@@ -757,6 +1145,7 @@
     function init() {
         inicjalizujSlotAdministratora();
         bindEvents();
+        loadAnalysisCrops();
 
         const params = new URLSearchParams(window.location.search);
         const initialQuery = (params.get("q") || "").trim();

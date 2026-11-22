@@ -1,6 +1,5 @@
 from collections import defaultdict
 from statistics import mean
-
 from .utils import month_key
 
 def monthly_soil_moisture(records):
@@ -11,7 +10,6 @@ def monthly_soil_moisture(records):
         for depth in (
             "soil_moisture_0_7cm",
             "soil_moisture_7_28cm",
-            "soil_moisture_28_100cm",
         ):
             value = record.get(depth)
             if value is not None:
@@ -25,10 +23,13 @@ def monthly_soil_moisture(records):
         for key, depths in values.items()
     }
 
-def analyze_soil_moisture(records, start_date=None, end_date=None):
+def analyze_soil_moisture(records, start_date=None, end_date=None, soil_profile=None):
     monthly = monthly_soil_moisture(records)
     if not monthly:
-        return {"available": False, "depths": {}, "overall_anomaly_mm3": None}
+        result = {"available": False, "depths": {}, "overall_anomaly_mm3": None}
+        if soil_profile is not None:
+            result["physical_profile"] = soil_profile
+        return result
 
     baseline = defaultdict(list)
     latest_key = max(monthly)
@@ -42,7 +43,6 @@ def analyze_soil_moisture(records, start_date=None, end_date=None):
     labels = {
         "soil_moisture_0_7cm": "0-7 cm",
         "soil_moisture_7_28cm": "7-28 cm",
-        "soil_moisture_28_100cm": "28-100 cm",
     }
 
     for depth in labels:
@@ -62,8 +62,13 @@ def analyze_soil_moisture(records, start_date=None, end_date=None):
             "anomaly": round(anomaly, 4),
         }
 
-    return {
+    result = {
         "available": bool(depths_result),
         "depths": depths_result,
         "overall_anomaly_mm3": round(mean(anomalies), 4) if anomalies else None,
     }
+
+    if soil_profile is not None:
+        result["physical_profile"] = soil_profile
+
+    return result

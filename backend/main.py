@@ -1,6 +1,7 @@
+from routes import test
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routes import auth, field, sensor, sensorType, openmeteo, crop
+from routes import auth, field, sensor, sensorType, crop
 
 app = FastAPI()
 
@@ -14,7 +15,7 @@ app.add_middleware(
 
 app.include_router(auth.router, prefix="/auth")
 app.include_router(crop.router, prefix="/crop")
-app.include_router(openmeteo.router, prefix="/openmeteo")
+app.include_router(test.router, prefix="/openmeteo")
 app.include_router(field.router, prefix="/field")
 app.include_router(sensor.router, prefix="/sensor")
 app.include_router(sensorType.router, prefix="/sensortype")

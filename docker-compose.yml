@@ -41,7 +41,7 @@ services:
         restart: unless-stopped
         environment:
             REMOTE_DATA_DIRECTORY: https://openmeteo.s3.amazonaws.com/data/
-            CACHE_SIZE: 8GB
+            CACHE_SIZE: 16GB
         ports:
             - "127.0.0.1:8080:8080"
         volumes:

@@ -1,4 +1,4 @@
-def assess_risk(current, historical, soil):
+def assess_risk(current, historical, soil, terrain=None, hydrology=None):
     components = []
     score = 0
 
@@ -34,6 +34,18 @@ def assess_risk(current, historical, soil):
             score += 20
             components.append("wilgotność gleby poniżej typowego poziomu")
 
+    if _has_low_retention_soil(soil):
+        score += 15
+        components.append("gleba o potencjalnie niskiej zdolności retencji")
+
+    terrain = terrain or {}
+    if terrain.get("available") and terrain.get("surface_runoff_risk") in (
+        "wysokie",
+        "bardzo wysokie",
+    ):
+        score += 15
+        components.append("istotne nachylenie sprzyjające spływowi powierzchniowemu")
+
     if score >= 70:
         level = "wysokie"
     elif score >= 40:
@@ -49,7 +61,21 @@ def assess_risk(current, historical, soil):
         "components": components,
     }
 
-def generate_recommendations(current, historical, soil):
+def _has_low_retention_soil(soil):
+    profile = soil.get("physical_profile")
+    if not profile or not profile.get("available"):
+        return False
+
+    attrs = profile.get("raw_attributes", {})
+    text = " ".join(str(value or "").lower() for value in attrs.values())
+    sandy_markers = (
+        "gleby piaszczyste", "piaski luźne", "piaski słabogliniaste",
+        "piaski gliniaste", "żwiry", "ps", "pgl", "plw",
+    )
+    return any(marker in text for marker in sandy_markers)
+
+
+def generate_recommendations(current, historical, soil, terrain=None, hydrology=None):
     recommendations = []
 
     if current["available"] and current["deficit_total_mm"] >= 20:
@@ -57,6 +83,32 @@ def generate_recommendations(current, historical, soil):
             "category": "nawadnianie",
             "action": "Ocena możliwości uzupełnienia niedoboru wodą",
             "reason": "Bieżący miesięczny niedobór opadów względem normy uprawy wynosi co najmniej 20 mm.",
+        })
+
+    hydrology = hydrology or {}
+    nearby_reservoir = hydrology.get("nearest_reservoir")
+    nearby_waterway = hydrology.get("nearest_waterway")
+    nearby_source = None
+
+    if nearby_reservoir and nearby_reservoir["distance_m"] <= 2000:
+        nearby_source = nearby_reservoir
+    elif nearby_waterway and nearby_waterway["distance_m"] <= 2000:
+        nearby_source = nearby_waterway
+
+    if current["available"] and current["deficit_total_mm"] >= 20 and nearby_source:
+        source_name = (
+            nearby_source.get("name")
+            or nearby_source.get("reservoir_type")
+            or nearby_source.get("waterway_type")
+            or "lokalny obiekt wodny"
+        )
+        recommendations.append({
+            "category": "nawadnianie",
+            "action": "Ocena możliwości technicznego i prawnego wykorzystania bliskiego źródła wody",
+            "reason": (
+                f"W pobliżu, około {nearby_source['distance_m']} m, znajduje się {source_name}. "
+                "Zanim podejmie się pobór, wymagane są ocena dostępności, pozwolenia i warunki środowiskowe."
+            ),
         })
 
     if soil["available"]:
@@ -67,6 +119,31 @@ def generate_recommendations(current, historical, soil):
                 "action": "Rozważenie działań poprawiających retencję gleby",
                 "reason": "Wilgotność dostępnych warstw gleby jest poniżej typowej wartości historycznej dla bieżącego miesiąca.",
             })
+
+    if _has_low_retention_soil(soil):
+        if not any(
+            item["action"] == "Rozważenie działań poprawiających retencję gleby"
+            for item in recommendations
+        ):
+            recommendations.append({
+                "category": "retencja gleby",
+                "action": "Rozważenie działań poprawiających retencję gleby",
+                "reason": "Mapa glebowo-rolnicza wskazuje gatunek gleby o potencjalnie niskiej zdolności retencji.",
+            })
+
+    terrain = terrain or {}
+    if terrain.get("available") and terrain.get("surface_runoff_risk") in (
+        "wysokie",
+        "bardzo wysokie",
+    ):
+        recommendations.append({
+            "category": "spływ powierzchniowy",
+            "action": "Rozważenie działań ograniczających spływ",
+            "reason": (
+                f"Nachylenie terenu wynosi {terrain['slope_percent']}% "
+                f"({terrain['terrain_category']}), co zwiększa ryzyko spływu."
+            ),
+        })
 
     frequent_months = [
         item for item in historical.get("repeatability_by_month", {}).values()

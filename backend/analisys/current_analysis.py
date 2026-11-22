@@ -1,5 +1,4 @@
 from collections import defaultdict
-
 from .utils import MONTH_NAMES, month_key
 
 def monthly_precipitation(records):
