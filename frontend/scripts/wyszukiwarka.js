@@ -356,7 +356,7 @@
             state.lastAnalysisReport = report;
             renderAnalysisReport(report);
             pdfButton.disabled = false;
-                setAnalysisStatus("Analiza gotowa. Raport nie jest zapisywany w bazie; możesz pobrać go jako PDF.", "ok");
+            setAnalysisStatus("Analiza gotowa. Raport możesz pobrać go jako PDF.", "ok");
         } catch (error) {
             state.lastAnalysisReport = null;
             setAnalysisStatus(error.message || "Nie udało się wykonać analizy.", "error");
@@ -562,13 +562,13 @@
 
         const parts = cleaned.includes(",")
             ? cleaned
-                  .split(",")
-                  .map((s) => s.trim())
-                  .filter(Boolean)
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean)
             : cleaned
-                  .split(" ")
-                  .map((s) => s.trim())
-                  .filter(Boolean);
+                .split(" ")
+                .map((s) => s.trim())
+                .filter(Boolean);
 
         if (parts.length !== 2) return null;
 
@@ -626,32 +626,32 @@
             a *
             ((1 - e2 / 4 - (3 * e4) / 64 - (5 * e6) / 256) * lat -
                 ((3 * e2) / 8 + (3 * e4) / 32 + (45 * e6) / 1024) *
-                    Math.sin(2 * lat) +
+                Math.sin(2 * lat) +
                 ((15 * e4) / 256 + (45 * e6) / 1024) * Math.sin(4 * lat) -
                 ((35 * e6) / 3072) * Math.sin(6 * lat));
 
         const x =
             falseEasting +
             k0 *
-                N *
-                (A +
-                    ((1 - T + C) * Math.pow(A, 3)) / 6 +
-                    ((5 - 18 * T + T * T + 72 * C - 58 * ep2) *
-                        Math.pow(A, 5)) /
-                        120);
+            N *
+            (A +
+                ((1 - T + C) * Math.pow(A, 3)) / 6 +
+                ((5 - 18 * T + T * T + 72 * C - 58 * ep2) *
+                    Math.pow(A, 5)) /
+                120);
 
         const y =
             falseNorthing +
             k0 *
-                (M +
-                    N *
-                        tanLat *
-                        ((A * A) / 2 +
-                            ((5 - T + 9 * C + 4 * C * C) * Math.pow(A, 4)) /
-                                24 +
-                            ((61 - 58 * T + T * T + 600 * C - 330 * ep2) *
-                                Math.pow(A, 6)) /
-                                720));
+            (M +
+                N *
+                tanLat *
+                ((A * A) / 2 +
+                    ((5 - T + 9 * C + 4 * C * C) * Math.pow(A, 4)) /
+                    24 +
+                    ((61 - 58 * T + T * T + 600 * C - 330 * ep2) *
+                        Math.pow(A, 6)) /
+                    720));
 
         return {
             x: Number(x.toFixed(2)),
@@ -1057,7 +1057,7 @@
             y:
                 canvas.height -
                 ((pt.lat - bbox.minLat) / (bbox.maxLat - bbox.minLat)) *
-                    canvas.height,
+                canvas.height,
         });
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
