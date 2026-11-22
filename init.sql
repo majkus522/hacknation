@@ -67,5 +67,4 @@ INSERT INTO Users (username, email, password) VALUES
 
 INSERT INTO Sensors (fieldId, typeId, value) VALUES 
 (1, 1, 0.4),
-(1, 2, 0.5),
-(2, 1, 0.6);
+(1, 2, 0.5);
