@@ -56,14 +56,22 @@ INSERT INTO SensorTypes (name) VALUES
 
 INSERT INTO Fields (x, y, name, points)
 VALUES (
-    0.42,
-    0.68,
-    'Pole Tomka',
-    '[{"x": 0.0, "y": 0.1}, {"x": 0.85, "y": 0.15}, {"x": 1.0, "y": 0.9}]'
+    21.304768,
+    50.317156,
+    '181103_2.0022.90/2 (Dąbrówka Osuchowska 90/2)',
+    '[{"x": 0.878671, "y": 1.0}, {"x": 0.0, "y": 0.915707}, {"x": 0.218254, "y": 0.0}, {"x": 0.978396, "y": 0.062693}]'
+);
+
+INSERT INTO Fields (x, y, name, points)
+VALUES (
+    21.304529,
+    51.316505,
+    '142510_5.0010.AR_1.170 (Grabina 170)',
+    '[{"x": 0.0, "y": 0.0}, {"x": 0.717056, "y": 0.09754}, {"x": 0.747255, "y": 0.274031}, {"x": 0.851465, "y": 0.800754}, {"x": 0.525912, "y": 1.0}]'
 );
 
 INSERT INTO Users (username, email, password) VALUES
-('test111', 'test@gmail.com', '$2b$12$T0YYGaopDQg6n.pYbfuNLuFcD1VE9qJx/rJx4QrO8gcpi./usMiWK');
+('Jan Kowalski', 'rolnik@perun.pl', '$2b$12$wv07EPTxL9qSs4apAKeqFOjQpBdGRxrWgGwugeMUkh0S/MPxlySB2');
 
 INSERT INTO Sensors (fieldId, typeId, value) VALUES 
 (1, 1, 0.4),
