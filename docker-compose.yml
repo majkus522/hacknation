@@ -1,4 +1,18 @@
 services:
+    frontend:
+        image: nginx:1.27-alpine
+        container_name: frontend
+        ports:
+        - "8080:80"
+        volumes:
+        - ./frontend:/usr/share/nginx/html:ro
+        restart: unless-stopped
+        depends_on:
+            - backend
+        networks:
+            main:
+                ipv4_address: 192.168.0.2
+
     backend:
         build:
             context: .
