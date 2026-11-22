@@ -379,22 +379,41 @@ System ekspercki jest najbardziej użyteczny, gdy jego wyniki można **odtworzy�
 
 ## 12. Rozwój i skalowalność
 
-Architektura PERUNA pozwala stopniowo zwiększać dokładność analiz i liczbę obsługiwanych gospodarstw.
+Długoterminowa wizja **PERUNA** zakłada przekształcenie systemu analitycznego w kompleksową platformę inteligentnego zarządzania zasobami wodnymi w rolnictwie. Rozwój rozwiązania będzie koncentrował się na automatyzacji procesów, wykorzystaniu sztucznej inteligencji oraz integracji danych satelitarnych, meteorologicznych i pomiarów terenowych.
 
-### 12.1. Najważniejsze kierunki rozwoju
+### 12.1. Strategiczne kierunki rozwoju
 
-1. **Analiza całych działek:** pobieranie geometrii EGiB/ULDK i agregacja wskaźników wewnątrz poligonu.
-2. **Aktualniejsze dane:** cyklicznie odświeżane archiwum oraz analiza nowych dat.
-3. **Wskaźniki satelitarne:** rozszerzenie o wybrane produkty Sentinel i analizę stanu roślinności.
-4. **Pomiar w terenie:** integracja z czujnikami wilgotności i sterownikami irygacji.
-5. **Raporty dla gospodarstwa:** prezentacja zmian w czasie, eksport PDF i historia wcześniejszych analiz.
-6. **Wydajność:** lokalny cache, pobieranie równoległe i przechowywanie danych referencyjnych.
-7. **Kontrola jakości:** testy automatyczne oraz porównanie wyników z pomiarami referencyjnymi.
+1. **Autonomiczne zarządzanie nawadnianiem (Smart Irrigation)**
+
+   Integracja PERUNA z inteligentnymi systemami irygacji, pompami i elektrozaworami umożliwi automatyczne sterowanie nawadnianiem na podstawie prognoz pogody, wilgotności gleby i zapotrzebowania upraw. System będzie optymalizował dawki i harmonogramy nawadniania, ograniczając zużycie wody oraz energii.
+
+2. **Cyfrowy bliźniak gospodarstwa (Digital Twin)**
+
+   Stworzenie wirtualnego modelu gospodarstwa odwzorowującego właściwości gleby, ukształtowanie terenu, uprawy i infrastrukturę wodną. Rozwiązanie umożliwi symulowanie skutków suszy, intensywnych opadów oraz różnych strategii nawadniania, wspierając planowanie inwestycji i zarządzanie zasobami.
+
+3. **Predykcja suszy i analiza satelitarna z wykorzystaniem AI**
+
+   Rozbudowa silnika analitycznego o modele uczenia maszynowego wykorzystujące wieloletnie dane meteorologiczne, zobrazowania Sentinel-1 i Sentinel-2 oraz wskaźniki NDVI, NDWI i NDMI. Pozwoli to prognozować zagrożenie suszą, wykrywać stres wodny roślin i identyfikować obszary wymagające interwencji.
+
+4. **Inteligentna sieć czujników IoT**
+
+   Integracja z czujnikami wilgotności i temperatury gleby, poziomu wód oraz lokalnymi stacjami meteorologicznymi. Wykorzystanie technologii LoRaWAN i NB-IoT umożliwi monitorowanie gospodarstw w czasie rzeczywistym, generowanie automatycznych alertów oraz dostosowywanie rekomendacji do rzeczywistych warunków terenowych.
+
+5. **Regionalna platforma zarządzania zasobami wodnymi**
+
+   Rozszerzenie PERUNA na poziom wielu gospodarstw i całych regionów rolniczych. Agregacja danych umożliwi tworzenie map zagrożenia suszą, identyfikację obszarów wymagających inwestycji retencyjnych oraz opracowywanie scenariuszy adaptacji rolnictwa do zmian klimatycznych.
 
 ### 12.2. Skalowanie architektury
 
-Na koszt jednej analizy wpływa liczba zapytań historycznych i integracji zewnętrznych. Największy potencjał optymalizacji daje ograniczenie ponownego pobierania identycznych przedziałów danych, równoległa obsługa niezależnych źródeł oraz lokalne indeksowanie przestrzenne.
+Rozwój PERUNA zakłada przejście w kierunku skalowalnej architektury umożliwiającej jednoczesną obsługę wielu gospodarstw oraz przetwarzanie dużych zbiorów danych przestrzennych i czasowych.
 
-W wersji wdrożeniowej warto mierzyć: medianę i 95. percentyl czasu odpowiedzi, liczbę zapytań do źródeł, udział błędów oraz wykorzystanie CPU, pamięci i bazy danych. **Cel wydajnościowy konkursu: analiza jednej działki w około 30 sekund**; osiągnięcie celu należy potwierdzić pomiarem środowiska demonstracyjnego.
+Najważniejsze kierunki rozwoju infrastruktury obejmują:
 
----
+- **Rozproszone przetwarzanie danych** – wykorzystanie zadań asynchronicznych i kolejek do wykonywania analiz satelitarnych, prognoz oraz symulacji.
+- **Przestrzenne bazy danych** – wykorzystanie PostgreSQL/PostGIS do analiz geometrii działek, stref nawadniania i obiektów hydrologicznych.
+- **Lokalne repozytorium danych** – przechowywanie przygotowanych zbiorów meteorologicznych i przestrzennych w celu ograniczenia zależności od dostępności zewnętrznych usług.
+- **Architektura chmurowa** – konteneryzacja i automatyczne skalowanie komponentów odpowiedzialnych za API, obliczenia i przetwarzanie danych.
+- **Integracja urządzeń IoT** – wydzielona infrastruktura komunikacyjna do odbierania i przetwarzania dużych strumieni pomiarów terenowych.
+- **Monitoring i niezawodność** – automatyczne testowanie, rejestrowanie jakości danych, monitorowanie czasu odpowiedzi oraz kontrola poprawności generowanych rekomendacji.
+
+Docelowo PERUN będzie rozwijany jako **modułowa platforma wspomagania i automatyzacji decyzji w rolnictwie**, łącząca obserwację środowiska, predykcję zagrożeń, symulowanie scenariuszy i sterowanie infrastrukturą wodną.
