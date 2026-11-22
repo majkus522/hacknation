@@ -23,7 +23,6 @@ ALGORITHM = getattr(
     security, "ALGORITHM", os.getenv("ALGORITHM", "HS256")
 )
 
-
 def serialize_user(db_user: User) -> dict:
     return {
         "userid": db_user.userid,
