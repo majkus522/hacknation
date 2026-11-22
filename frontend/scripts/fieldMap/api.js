@@ -6,7 +6,8 @@
         window.PerunMap.config;
 
     async function fetchJsonSafe(path) {
-        const variants = path.endsWith("/") ? [path] : [`${path}/`, path];
+        const clean = path.replace(/\/+$/, "");
+        const variants = [`${clean}/`, clean];
         for (const url of variants) {
             try {
                 const res = await window.PerunAuth.authFetch(url);
@@ -16,6 +17,67 @@
             }
         }
         return null;
+    }
+
+    function extractArray(payload, candidateKeys = []) {
+        if (Array.isArray(payload)) return payload;
+        if (!payload || typeof payload !== "object") return [];
+
+        for (const key of candidateKeys) {
+            if (Array.isArray(payload[key])) return payload[key];
+        }
+        for (const val of Object.values(payload)) {
+            if (Array.isArray(val)) return val;
+        }
+        return [];
+    }
+
+    async function fetchAllFieldsAndSensors() {
+        const [rawFields, rawSensors] = await Promise.all([
+            fetchJsonSafe("/field"),
+            fetchJsonSafe("/sensor"),
+        ]);
+
+        const fields = extractArray(rawFields, ["fields", "items", "data"]);
+        let sensors = extractArray(rawSensors, ["sensors", "items", "data"]);
+
+        // Jeśli /sensor nie zwrócił czujek globalnie, spróbuj pobrać je per działka
+        if (sensors.length === 0 && fields.length > 0) {
+            const perFieldResults = await Promise.all(
+                fields.map(async (f) => {
+                    const fid =
+                        f.fieldId ?? f.fieldid ?? f.field_id ?? f.id ?? null;
+                    if (fid == null) return [];
+
+                    const resA = await fetchJsonSafe(`/sensor/field/${fid}`);
+                    const arrA = extractArray(resA, [
+                        "sensors",
+                        "items",
+                        "data",
+                    ]);
+                    if (arrA.length > 0) {
+                        return arrA.map((s) => ({
+                            ...s,
+                            fieldId: s.fieldId ?? s.fieldid ?? fid,
+                        }));
+                    }
+
+                    const resB = await fetchJsonSafe(`/field/${fid}/sensors`);
+                    const arrB = extractArray(resB, [
+                        "sensors",
+                        "items",
+                        "data",
+                    ]);
+                    return arrB.map((s) => ({
+                        ...s,
+                        fieldId: s.fieldId ?? s.fieldid ?? fid,
+                    }));
+                }),
+            );
+            sensors = perFieldResults.flat();
+        }
+
+        return { fields, sensors };
     }
 
     function loadOfflineSensorsMap() {
@@ -162,6 +224,8 @@
 
     window.PerunMap.api = {
         fetchJsonSafe,
+        extractArray,
+        fetchAllFieldsAndSensors,
         loadOfflineSensorsMap,
         saveOfflineSensorsForField,
         parseGoogleWeatherPayload,
