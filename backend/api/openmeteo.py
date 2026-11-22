@@ -5,7 +5,7 @@ from statistics import mean
 import requests
 
 BASE_URL = "http://open-meteo:8080"
-ARCHIVE_END_DATE = date(2016, 12, 31)
+ARCHIVE_START_DATE = date(2016, 1, 1)
 
 DAILY_VARIABLES = [
     "rain_sum",

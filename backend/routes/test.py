@@ -132,25 +132,25 @@ def analyze_location(
     if crop is None:
         raise HTTPException(status_code=404, detail="Crop not found")
 
-    latest_available_date = om.ARCHIVE_END_DATE
+    latest_available_date = date.today()
     current_to = analysis_date or latest_available_date
+    if current_to < om.ARCHIVE_START_DATE:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Dane archiwalne są dostępne od {om.ARCHIVE_START_DATE.isoformat()}",
+        )
     if current_to > latest_available_date:
         raise HTTPException(
             status_code=422,
             detail=f"Data analizy nie może być późniejsza niż {latest_available_date.isoformat()}",
         )
 
-    current_from = current_to - timedelta(days=29)
+    current_from = max(
+        om.ARCHIVE_START_DATE,
+        current_to - timedelta(days=29),
+    )
     historical_to = current_to
-
-    try:
-        historical_from = date(
-            current_to.year - 10,
-            current_to.month,
-            current_to.day,
-        )
-    except ValueError:
-        historical_from = date(current_to.year - 10, current_to.month, 28)
+    historical_from = om.ARCHIVE_START_DATE
 
     retrieved_at = datetime.now(timezone.utc).isoformat()
 
@@ -226,8 +226,8 @@ def analyze_location(
                 "retrieved_at": retrieved_at,
                 "analysis_date": current_to.isoformat(),
                 "forecast_note": (
-                    "Lokalne archiwum Open-Meteo kończy się na 2016-12-31; "
-                    "prognoza bieżąca nie odpowiada wybranej historycznej dacie."
+                    "Dane archiwalne obejmują okres od 2016-01-01 do wybranej daty analizy. "
+                    "Prognoza bieżąca nie jest dołączana do analizy historycznej."
                 ),
             },
         )

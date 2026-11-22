@@ -31,8 +31,15 @@
 
         const analysisDateInput = document.getElementById("analysisDate");
         if (analysisDateInput) {
-            analysisDateInput.max = "2016-12-31";
-            analysisDateInput.value = "2016-12-31";
+            const today = new Date();
+            const todayLocal = [
+                today.getFullYear(),
+                String(today.getMonth() + 1).padStart(2, "0"),
+                String(today.getDate()).padStart(2, "0"),
+            ].join("-");
+            analysisDateInput.min = "2016-01-01";
+            analysisDateInput.max = todayLocal;
+            analysisDateInput.value = todayLocal;
         }
 
         try {
