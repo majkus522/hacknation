@@ -95,7 +95,7 @@ PERUN wykorzystuje backend Python/FastAPI, bazę PostgreSQL oraz usługi dostarc
 - Zainstalowane środowisko Docker
 - Dostęp do Internetu
 
-### 3.2. Instalacja 
+### 3.2. Instalacja i logowanie domyślnego użytkownika
 
 1. Sklonować repozytorium:
 
@@ -105,7 +105,7 @@ git clone https://github.com/majkus522/hacknation.git
 2. W środowisku Docker przejść do lokalizacji repozytorium, otworzyć konsolę i wpisać komendę:
 
 ```
-docker compose up --build
+docker compose up
 ```
 
 3. Po załadowaniu się wszystkich bibliotek i baz danych w przeglądarce internetowej wejść pod adres:
@@ -114,6 +114,12 @@ docker compose up --build
 http://localhost:8081/
 ```
 
+4. Zalogować się na domyślne konto użytkownika
+
+```
+Nazwa użytkownika: rolnik@perun.pl
+Hasło : Perun2026!
+```
 ---
 
 ## 4. Od działki do decyzji — scenariusz użytkownika
@@ -188,9 +194,7 @@ $$P_{y,m} = \sum_{d \in (y,m)} P_d$$
 
 Niedobór względem normy uprawy:
 
-\[
-D_{y,m}=\max(N_m-P_{y,m},0)
-\]
+$$D_{y,m}=\max(N_m-P_{y,m},0)$$
 
 Gdzie `P` oznacza opad w mm, a `N_m` — normę przypisaną do uprawy i miesiąca. Wynik pozwala wskazać okresy, w których opady były niższe od przyjętej wartości odniesienia. W przypadku niepełnych miesięcy należy uwzględnić odpowiednie przeskalowanie norm lub oznaczyć ograniczoną porównywalność okresów.
 
