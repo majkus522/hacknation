@@ -34,7 +34,9 @@ CREATE TABLE Sensors (
     sensorId SERIAL PRIMARY KEY,
     fieldId INT REFERENCES Fields(fieldId),
     typeId INT REFERENCES SensorTypes(id),
-    value FLOAT NOT NULL
+    value FLOAT NOT NULL,
+    x FLOAT,
+    y FLOAT
 );
 
 CREATE TABLE Logs (
@@ -73,6 +75,10 @@ VALUES (
 INSERT INTO Users (username, email, password) VALUES
 ('Jan Kowalski', 'rolnik@perun.pl', '$2b$12$wv07EPTxL9qSs4apAKeqFOjQpBdGRxrWgGwugeMUkh0S/MPxlySB2');
 
-INSERT INTO Sensors (fieldId, typeId, value) VALUES 
-(1, 1, 0.4),
-(1, 2, 0.5);
+INSERT INTO Sensors (fieldId, typeId, value, x, y) VALUES 
+(1, 2, 10, 0.4, 0.4),
+(1, 2, 10, 0.3, 0.6),
+(1, 2, 40, 0.6, 0.1),
+(2, 2, 10, 0.3, 0.7),
+(2, 2, 10, 0.3, 0.9),
+(2, 2, 40, 0.1, 0.9);
