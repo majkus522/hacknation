@@ -383,27 +383,71 @@
             return;
         }
 
-        const title = `Raport Perun - ${report.plot?.name || "dzialka"}`;
+        const title = `Raport Perun - ${report.plot?.name || "działka"}`;
+        const escapePrintText = (value) => String(value ?? "")
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;");
+        const printPlotName = escapePrintText(report.plot?.name || "bez nazwy");
+        const printCropName = escapePrintText(report.crop?.name || "—");
+        const printAnalysisDate = escapePrintText(report.analysis_date || "—");
+
         printWindow.document.open();
         printWindow.document.write(`<!doctype html>
             <html lang="pl"><head><meta charset="UTF-8">
-            <title>${title.replace(/[<>&"]/g, "")}</title>
+            <title>${escapePrintText(title)}</title>
             <style>
-                body{font:10.5pt Arial,sans-serif;color:#1f2937;max-width:900px;margin:28px auto;line-height:1.45}
-                h2,h3{color:#14532d}h2{font-size:19pt;margin-bottom:4px}h3{font-size:12pt;margin-top:16px}
-                p{margin:5px 0 9px}ul{padding-left:22px}li{margin:4px 0}
-                .analysis-report-subtitle{font-weight:bold}.analysis-report-coordinates{color:#64748b;font-size:9pt}
-                .analysis-report-section{margin-top:16px;padding-top:4px;border-top:1px solid #d1d5db}
-                .analysis-risk-summary{margin:14px 0}.analysis-kpi-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:8px 0 14px}
-                .analysis-kpi-grid-monthly{grid-template-columns:repeat(3,minmax(0,1fr))}.analysis-kpi-grid-forecast{grid-template-columns:repeat(4,minmax(0,1fr))}
-                .analysis-kpi-card{display:flex;flex-direction:column;gap:4px;padding:9px;border:1px solid #d1d5db;border-radius:7px;background:#fff;break-inside:avoid}
-                .analysis-kpi-label{color:#526071;font-size:8pt}.analysis-kpi-value{color:#1f2937;font-size:11pt;font-weight:bold;overflow-wrap:anywhere}
-                .analysis-kpi-note{color:#15803d;font-size:7.5pt}.analysis-kpi-card-risk{border-color:#bbf7d0;background:#f0fdf4}
+                *{box-sizing:border-box}
+                html,body{margin:0;padding:0}
+                body{font:9.5pt/1.42 Arial,sans-serif;color:#1f2937;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+                .print-document{max-width:174mm;margin:0 auto}
+                .print-header{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:12mm;padding:0 0 4mm;border-bottom:2pt solid #14532d}
+                .print-brand{font-size:16pt;font-weight:800;letter-spacing:.08em;color:#14532d}
+                .print-heading{margin:2mm 0 0;font-size:20pt;line-height:1.05;color:#14532d}
+                .print-meta{text-align:right;color:#526071;font-size:8.5pt;line-height:1.5}
+                .print-meta strong{display:block;color:#1f2937;font-size:9.5pt}
+                .analysis-report-title{display:none}
+                h3{margin:0 0 3mm;color:#14532d;font-size:12pt;break-after:avoid}
+                p{margin:2mm 0 3mm;orphans:3;widows:3}
+                ul{margin:2mm 0 3mm;padding-left:5mm}li{margin:1mm 0;orphans:3;widows:3}
+                .analysis-report-subtitle{font-weight:bold}
+                .analysis-report-coordinates,.analysis-report-note{color:#64748b;font-size:8.5pt}
+                .analysis-report-section{margin:0 0 7mm;padding:5mm 0 0;border-top:.5pt solid #d1d5db}
+                .analysis-risk-summary{margin:3mm 0 5mm}
+                .analysis-kpi-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:3mm;margin:2mm 0 4mm}
+                .analysis-kpi-grid-monthly{grid-template-columns:repeat(3,minmax(0,1fr))}
+                .analysis-kpi-grid-forecast{grid-template-columns:repeat(4,minmax(0,1fr))}
+                .analysis-kpi-card{display:flex;min-width:0;flex-direction:column;gap:1mm;padding:3mm;border:.5pt solid #d1d5db;border-radius:2mm;background:#fff;break-inside:avoid}
+                .analysis-kpi-label{color:#526071;font-size:7.5pt}
+                .analysis-kpi-value{color:#1f2937;font-size:10pt;font-weight:bold;overflow-wrap:anywhere}
+                .analysis-kpi-note{color:#15803d;font-size:7.5pt}
+                .analysis-kpi-card-risk{border:.75pt solid #86efac;background:#f0fdf4}
                 .analysis-kpi-card-risk .analysis-kpi-value{color:#166534;text-transform:capitalize}
-                .analysis-variable-descriptions{margin-top:18px;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0}
-                .analysis-variable-descriptions summary{font-weight:bold;color:#14532d}.analysis-report-note{color:#64748b}
-                @page{size:A4;margin:18mm}
-            </style></head><body>${output.innerHTML}</body></html>`);
+                .analysis-variable-descriptions{margin-top:6mm;padding:3mm 4mm;background:#f8fafc;border:.5pt solid #dbe3ec;break-before:page}
+                .analysis-variable-descriptions summary{font-weight:bold;color:#14532d}
+                @media print{
+                    @page{size:A4 portrait;margin:12mm 14mm 14mm}
+                    .analysis-report-section{break-inside:auto}
+                    .analysis-kpi-card,.analysis-risk-summary{break-inside:avoid}
+                }
+            </style></head>
+            <body>
+                <main class="print-document">
+                    <header class="print-header">
+                        <div>
+                            <div class="print-brand">PERUN</div>
+                            <h1 class="print-heading">Raport analizy działki</h1>
+                        </div>
+                        <div class="print-meta">
+                            <strong>${printPlotName}</strong>
+                            Uprawa: ${printCropName}<br>
+                            Data analizy: ${printAnalysisDate}
+                        </div>
+                    </header>
+                    <article class="analysis-report">${output.innerHTML}</article>
+                </main>
+            </body></html>`);
         printWindow.document.close();
         printWindow.focus();
         window.setTimeout(() => printWindow.print(), 250);

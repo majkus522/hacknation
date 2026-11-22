@@ -169,6 +169,19 @@ def analyze_location(
             if current_from.isoformat() <= record["date"] <= historical_to.isoformat()
         ]
         forecast = []
+        if current_to == latest_available_date:
+            try:
+                forecast = [
+                    record
+                    for record in om.get_forecast_weather_data(
+                        latitude,
+                        longitude,
+                        forecast_days=7,
+                    )
+                    if record["date"] >= latest_available_date.isoformat()
+                ]
+            except (requests.RequestException, ValueError):
+                forecast = []
         try:
             soil_profile = geoportal.get_soil_feature(latitude, longitude)
         except (requests.RequestException, ValueError, ET.ParseError):
@@ -226,8 +239,12 @@ def analyze_location(
                 "retrieved_at": retrieved_at,
                 "analysis_date": current_to.isoformat(),
                 "forecast_note": (
-                    "Dane archiwalne obejmują okres od 2016-01-01 do wybranej daty analizy. "
-                    "Prognoza bieżąca nie jest dołączana do analizy historycznej."
+                    "Prognoza obejmuje bieżący dzień i kolejne dni."
+                    if current_to == latest_available_date
+                    else (
+                        "Dane archiwalne obejmują okres od 2016-01-01 do wybranej daty analizy. "
+                        "Dla daty historycznej prognoza nie jest dostępna."
+                    )
                 ),
             },
         )
